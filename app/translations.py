@@ -1,0 +1,466 @@
+from __future__ import annotations
+
+import re
+
+
+def _normalize_name(value: str) -> str:
+    return " ".join(value.strip().upper().split())
+
+
+CATEGORY_TRANSLATIONS = {
+    "BLACK COFFEE": "Black Coffee",
+    "COFFEE&MILK": "Coffee & Milk",
+    "LATTE": "Latte",
+    "RAF COFFEE": "Raf",
+    "ICED COFFEE": "Iced Coffee",
+    "NOT COFFEE": "Not Coffee",
+    "TEA": "Tea",
+    "COLD DRINKS": "Cold Drinks",
+    "COCKTAILS": "Cocktails",
+    "SYRUPS/SAUCES": "Syrups & Sauces",
+}
+
+DRINK_NAME_DISPLAY = {
+    "DOUBLE ESPRESSO": "Double Espresso",
+    "AMERICANO": "Americano",
+    "HARIO V60": "Hario V60",
+    "CHEMEX": "Chemex",
+    "BLACK STRAWBERRY": "Black Strawberry",
+    "FRENCHPRESS": "French Press",
+    "HOOP": "Hoop",
+    "CORTADO": "Cortado",
+    "CAPPUCCINO": "Cappuccino",
+    "FLAT WHITE": "Flat White",
+    "LATTE": "Latte",
+    "LATTE SINGAPORE": "Latte Singapore",
+    "LATTE SALTED CARAMEL": "Latte Salted Caramel",
+    "LATTE SAHARA": "Latte Sahara",
+    "LATTE HALVA": "Latte Halva",
+    "LATTE SPANISH": "Latte Spanish",
+    "LATTE CANADA": "Latte Canada",
+    "VANILLA": "Vanilla",
+    "ORANGE": "Orange",
+    "LAVENDER": "Lavender",
+    "RAF HALVA": "Raf Halva",
+    "MIMOZA": "Mimoza",
+    "POP CORN": "Pop Corn",
+    "ESPRESSO TONIC": "Espresso Tonic",
+    "COLD BREW TONIC": "Cold Brew Tonic",
+    "COLD BREW": "Cold Brew",
+    "BUMBLE": "Bumble",
+    "CHERRY CREAM": "Cherry Cream",
+    "BOUNTY": "Bounty",
+    "ICE LATTE": "Ice Latte",
+    "ICE CAPPUCCINO": "Ice Cappuccino",
+    "ICE AMERICANO": "Ice Americano",
+    "ICE SINGAPORE": "Ice Singapore",
+    "ICE CARAMEL": "Ice Caramel",
+    "ICE CANADA": "Ice Canada",
+    "ICE SPANISH": "Ice Spanish",
+    "CHERRY ICE MATCHA": "Cherry Ice Matcha",
+    "ICECACAO": "Ice Cacao",
+    "ICE MATCHA": "Ice Matcha",
+    "CACAO": "Cacao",
+    "VANILLA SKY": "Vanilla Sky",
+    "LATTE CHICORY": "Latte Chicory",
+    "LATTE MATCHA": "Latte Matcha",
+    "ASSAM TEA": "Assam Tea",
+    "DARJEELING TEA": "Darjeeling Tea",
+    "GREEN TEA": "Green Tea",
+    "JASMINE TEA": "Jasmine Tea",
+    "EASY BREATHING": "Easy Breathing",
+    "WILD BERRY": "Wild Berry",
+    "TIEGUANYIN": "Tieguanyin",
+    "SEA BUCKTHORN": "Sea Buckthorn",
+    "BLACK CURRANT": "Black Currant",
+    "MILKY OOLONG": "Milky Oolong",
+    "ICE SIBERIAN": "Ice Siberian",
+    "ICE BLACKCURRANT": "Ice Blackcurrant",
+    "ICE SIBERIAN(BOTTLE)": "Ice Siberian (Bottle)",
+    "ICE BLACKCURRANT(BOTTLE)": "Ice Blackcurrant (Bottle)",
+    "SMOOTHIE": "Smoothie",
+    "LEMONADE": "Lemonade",
+    "CHERRY LEMONADE": "Cherry Lemonade",
+    "GLUHWEIN N/A": "Gluhwein N/A",
+    "APEROL SPRITZ": "Aperol Spritz",
+    "RUBY SUNSET": "Ruby Sunset",
+    "SALTED CARAMEL": "Salted Caramel",
+    "VANILLA SUGAR": "Vanilla Sugar",
+    "SINGAPORE": "Singapore",
+    "ORANGE POWDER": "Orange Powder",
+    "LAVANDER POWDER": "Lavander Powder",
+    "MIX CREAM(RAF)": "Mix Cream (Raf)",
+    "SIMPLE SYRUP(SUGAR)": "Simple Syrup (Sugar)",
+    "SEA BUCKTHORN SAUCE": "Sea Buckthorn Sauce",
+    "BLACK CURRANT SAUCE": "Black Currant Sauce",
+    "HALVA SUACE": "Halva Sauce",
+    "CARAMEL SYRUP(BUMBLE)": "Caramel Syrup (Bumble)",
+    "CACAO SAUCE": "Cacao Sauce",
+}
+
+INGREDIENT_TRANSLATIONS = {
+    "milk": "молоко",
+    "steamed milk": "взбитое молоко",
+    "hot water": "горячая вода",
+    "filtered water": "фильтрованная вода",
+    "filtred water": "фильтрованная вода",
+    "ice cubes": "кубики льда",
+    "ice cube": "кубик льда",
+    "tonic": "тоник",
+    "sparkling water": "газированная вода",
+    "sparkling wine": "игристое вино",
+    "orange juice": "апельсиновый сок",
+    "lime juice": "сок лайма",
+    "lemon juice": "лимонный сок",
+    "coconut milk": "кокосовое молоко",
+    "oat milk": "овсяное молоко",
+    "oat  milk": "овсяное молоко",
+    "mix cream": "смесь сливок",
+    "fat cream (>30%)": "жирные сливки (>30%)",
+    "fat cream": "жирные сливки",
+    "cold brew concentrate": "концентрат колд брю",
+    "cold brew concetrate": "концентрат колд брю",
+    "cold filter": "холодный фильтр",
+    "singapore sauce": "соус Singapore",
+    "salted caramel": "соленая карамель",
+    "halva saucе": "халвенный соус",
+    "halva sauce": "халвенный соус",
+    "condensed milk": "сгущенное молоко",
+    "orange powder": "апельсиновая пудра",
+    "lavander powder": "лавандовая пудра",
+    "vanilla sugar": "ванильный сахар",
+    "maple syrup": "кленовый сироп",
+    "dates syrup": "финиковый сироп",
+    "coconut syrup": "кокосовый сироп",
+    "caramel syrup": "карамельный сироп",
+    "cherry syrup": "вишневый сироп",
+    "black currant sauce": "соус из черной смородины",
+    "seabuckthorn sauce": "облепиховый соус",
+    "sea buckthorn sauce": "облепиховый соус",
+    "rosemary": "розмарин",
+    "matcha": "матча",
+    "frozen strawberry": "замороженная клубника",
+    "banana": "банан",
+    "schweppes": "Schweppes",
+    "cacao powder/50gr cacao sauce": "какао-порошок / 50 г какао-соуса",
+    "cacao powder": "какао-порошок",
+    "cacao sauce": "какао-соус",
+}
+
+TEXT_REPLACEMENTS = [
+    ("prepare espresso using brew ratio", "приготовьте эспрессо с brew ratio"),
+    ("the weight of the espresso must be within", "вес эспрессо должен быть в пределах"),
+    ("mix hot and cold water into the  cup", "смешайте горячую и холодную воду в чашке"),
+    ("mix hot and cold water into the cup", "смешайте горячую и холодную воду в чашке"),
+    ("pour double espresso into the water", "влейте двойной эспрессо в воду"),
+    ("put 18 grams of grounded beans into a moistened filter", "поместите 18 граммов молотого зерна в смоченный фильтр"),
+    ("put 90gr of the frozen strawberry into the server", "поместите 90 г замороженной клубники в сервер"),
+    ("put the rosemary in tea pot", "положите розмарин в чайник"),
+    ("add blackcurrant suace", "добавьте соус из черной смородины"),
+    ("put 18 grams of grounded beans into a moistened filter", "поместите 18 граммов молотого зерна в смоченный фильтр"),
+    ("add water according to the recipe", "добавьте воду по рецепту"),
+    ("amount of pours", "количество проливов"),
+    ("slowly pour 400gr of water from the center in a spiral", "медленно влейте 400 г воды от центра по спирали"),
+    ("pour in the entire volume of water(on the sides)", "влейте весь объем воды по стенкам"),
+    ("wait for 30sec", "подождите 30 секунд"),
+    ("wait for 30 sec", "подождите 30 секунд"),
+    ("pour in the remaining milk", "влейте оставшееся молоко"),
+    ("the remaining milk", "оставшееся молоко"),
+    ("the espresso into the milk", "эспрессо в молоко"),
+    ("pour in the espresso into the milk", "влейте эспрессо в молоко"),
+    ("pour in the espresso into the cup", "влейте эспрессо в чашку"),
+    ("serve with sesame seeds and halva on top", "подавайте с кунжутом и халвой сверху"),
+    ("serve with pop corn on top", "подавайте с попкорном сверху"),
+    ("with sesame seeds and halva on top", "с кунжутом и халвой сверху"),
+    ("and create art with etching technique", "и сделайте рисунок в технике etching"),
+    ("pour a drop of milk", "влейте немного молока"),
+    ("stir until the color becomes uniform", "размешайте до однородного цвета"),
+    ("then pour in the milk using the latte art technique", "затем влейте молоко в технике латте-арт"),
+    ("prepare a single espresso into the cup", "приготовьте одинарный эспрессо в чашку"),
+    ("prepare a single/double espresso into the cup", "приготовьте одинарный/двойной эспрессо в чашку"),
+    ("prepare a double espresso into the cup", "приготовьте двойной эспрессо в чашку"),
+    ("prepare a double espresso into the small pitcher", "приготовьте двойной эспрессо в маленький питчер"),
+    ("prepare a double espresso into the small pitcher", "приготовьте двойной эспрессо в маленький питчер"),
+    ("prepare a double espresso into the pitcher", "приготовьте двойной эспрессо в питчер"),
+    ("prepare an espresso into the pitcher", "приготовьте эспрессо в питчер"),
+    ("prepare an espresso into the small pitcher", "приготовьте эспрессо в маленький питчер"),
+    ("prepare a double espresso into the small pitcher", "приготовьте двойной эспрессо в маленький питчер"),
+    ("prepare an espresso into the pitcher", "приготовьте эспрессо в питчер"),
+    ("prepare an espresso into the small pitcher", "приготовьте эспрессо в маленький питчер"),
+    ("add ice into the glass", "добавьте лед в стакан"),
+    ("add tonic", "добавьте тоник"),
+    ("pour in an espresso on top", "влейте сверху эспрессо"),
+    ("pour in the cream", "влейте сливки"),
+    ("pour in the liquid", "влейте жидкость"),
+    ("add syrup to the cup", "добавьте сироп в чашку"),
+    ("add syrup to the pitcher with milk, steam it and pour in the glass", "добавьте сироп в питчер с молоком, взбейте и перелейте в стакан"),
+    ("add all ingredients in pitcher", "добавьте все ингредиенты в питчер"),
+    ("steam the milk", "взбейте молоко паром"),
+    ("steamed it and serve", "взбейте паром и подавайте"),
+    ("add all ingredients to blender and blend at maximum power for 30 seconds", "добавьте все ингредиенты в блендер и взбейте на максимальной мощности в течение 30 секунд"),
+    ("mix it thoroughly", "тщательно перемешайте"),
+    ("mix twice and garnish", "перемешайте дважды и украсьте"),
+    ("classic indian black tea", "классический индийский черный чай"),
+    ("tea grown in the vicinity of the city of the same name in the northern mountainous part of india in the himalayas, collected and manufactured under certain conditions. plantations are located at an altitude of 750-2000 meters above sea level", "чай, выращенный в окрестностях одноименного города в северной горной части Индии, в Гималаях. Собирается и производится при особых условиях. Плантации расположены на высоте 750-2000 метров над уровнем моря"),
+    ("the finished drink has a characteristic floral aroma. the taste combines sweetish shades and sourness. the aftertaste is velvety, honey.", "готовый напиток обладает характерным цветочным ароматом. Во вкусе сочетаются сладковатые оттенки и кислинка. Послевкусие бархатистое, медовое."),
+    ("light breath herbal tea is ideal for a relaxing break. the tea consists of a unique blend of linden flowers, fenugreek seeds, mint leaves, sage and thyme. all these ingredients have a long tradition in folk medicine and are known for their positive properties.", "травяной чай «Легкое дыхание» идеально подходит для расслабляющей паузы. В составе уникальная смесь цветов липы, семян пажитника, листьев мяты, шалфея и тимьяна. Все эти ингредиенты давно используются в народной медицине и известны своими полезными свойствами."),
+    ("ingredients: apple pieces, hibiscus, birch leaves, elderberry, blackberry leaves, verbena leaves, strawberry, blackberry, raspberry and blueberry", "состав: кусочки яблока, гибискус, листья березы, бузина, листья ежевики, листья вербены, клубника, ежевика, малина и черника"),
+    ("grind the filter coffee beans at grinding level 15", "измельчите зерно для фильтра на уровне помола 15"),
+    ("200 grams of ground filter coffee beans fill with 1l of water.", "200 г молотого зерна для фильтра залейте 1 л воды."),
+    ("leave for 16 hours", "оставьте на 16 часов"),
+    ("1 part cold brew, two parts filtered water", "1 часть колд брю и 2 части фильтрованной воды"),
+    ("73 grams of cold brew preparation + 146 grams of filtred water", "73 г заготовки колд брю + 146 г фильтрованной воды"),
+    ("single/double - espresso", "одинарный/двойной эспрессо"),
+    ("single/double espresso", "одинарный/двойной эспрессо"),
+    ("single/double - espresso", "одинарный/двойной эспрессо"),
+    ("single espresso", "одинарный эспрессо"),
+    ("double espresso", "двойной эспрессо"),
+    ("steamed milk", "взбитое молоко"),
+    ("cold brew concentrate", "концентрат колд брю"),
+    ("cold brew concetrate", "концентрат колд брю"),
+    ("cold filter", "холодный фильтр"),
+    ("filter coffee beans", "зерно для фильтра"),
+    ("coffee beans", "кофейные зерна"),
+    ("filtred water", "фильтрованная вода"),
+    ("filtered water", "фильтрованная вода"),
+    ("sparkling water", "газированная вода"),
+    ("sparkling wine", "игристое вино"),
+    ("mix cream", "смесь сливок"),
+    ("fat cream", "жирные сливки"),
+    ("oat  milk", "овсяное молоко"),
+    ("oat milk", "овсяное молоко"),
+    ("coconut milk", "кокосовое молоко"),
+    ("condensed milk", "сгущенное молоко"),
+    ("vanilla sugar", "ванильный сахар"),
+    ("orange powder", "апельсиновая пудра"),
+    ("lavander powder", "лавандовая пудра"),
+    ("lemongrass syrup", "сироп лемонграсс"),
+    ("maple syrup", "кленовый сироп"),
+    ("dates syrup", "сироп из фиников"),
+    ("cherry syrup", "вишневый сироп"),
+    ("caramel syrup", "карамельный сироп"),
+    ("coconut syrup", "кокосовый сироп"),
+    ("lime juice", "сок лайма"),
+    ("lemon juice", "лимонный сок"),
+    ("orange juice", "апельсиновый сок"),
+    ("hot water", "горячая вода"),
+    ("ice cubes", "кубики льда"),
+    ("ice cube", "кубик льда"),
+    ("ice into the glass", "лед в стакан"),
+    ("slice of lime/lemon", "долька лайма/лимона"),
+    ("slice of an orange", "долька апельсина"),
+    ("slice of a lemon", "долька лимона"),
+    ("slice of lime", "долька лайма"),
+    ("slice of lemon", "долька лимона"),
+    ("create art with etching technique", "сделайте рисунок в технике etching"),
+    ("whip it with an electric whisk within 15 seconds", "взбейте электрическим венчиком в течение 15 секунд"),
+    ("whip the cream with an electric whisk within 30 seconds", "взбейте сливки электрическим венчиком в течение 30 секунд"),
+    ("add all ingredients to a glass, mix thoroughly and garnish with lemon slice", "добавьте все ингредиенты в стакан, тщательно перемешайте и украсьте долькой лимона"),
+    ("add all ingredients to a glass, mix thoroughly", "добавьте все ингредиенты в стакан и тщательно перемешайте"),
+    ("add all ingredients to the kettle and stir with a spoon.", "добавьте все ингредиенты в чайник и перемешайте ложкой."),
+    ("recommended", "рекомендуем"),
+    ("brewing for 3 minutes", "заваривать 3 минуты"),
+    ("brewing for 5 minutes", "заваривать 5 минут"),
+    ("boil a kettle at 95 degrees with filtered water", "вскипятите чайник с фильтрованной водой до 95 градусов"),
+    ("boil a kettle at 85 degrees with filtered water", "вскипятите чайник с фильтрованной водой до 85 градусов"),
+    ("boil a kettle at 100 degrees with filtered water", "вскипятите чайник с фильтрованной водой до 100 градусов"),
+    ("add tea to the tea pot", "добавьте чай в чайник"),
+    ("add water to the tea pot", "добавьте воду в чайник"),
+    ("garnish with orange slice", "украсьте долькой апельсина"),
+    ("garnish with lemon/lime", "украсьте лимоном или лаймом"),
+    ("garnish", "украсьте"),
+    ("add syrup to the cup", "добавьте сироп в чашку"),
+    ("foam 1cm", "пена 1 см"),
+    ("foam 1,5cm", "пена 1,5 см"),
+    ("foam 0,4mm", "пена 0,4 мм"),
+    ("put into pan/pot", "поместить в кастрюлю"),
+]
+
+
+def translate_category_name(value: str) -> str:
+    return CATEGORY_TRANSLATIONS.get(_normalize_name(value), value.strip())
+
+
+def display_drink_name(value: str) -> str:
+    normalized = _normalize_name(value)
+    if normalized in DRINK_NAME_DISPLAY:
+        return DRINK_NAME_DISPLAY[normalized]
+
+    compact = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", value.strip())
+    if compact:
+        return compact
+    return value.strip()
+
+
+def _translate_ingredient_label(value: str) -> str:
+    normalized = " ".join(value.strip().split()).lower()
+    return INGREDIENT_TRANSLATIONS.get(normalized, value.strip())
+
+
+def _inflected_ingredient(amount: str, label: str) -> str | None:
+    forms = {
+        "молоко": "молока",
+        "зерно для фильтра": "зерна для фильтра",
+        "кофейные зерна": "кофейных зерен",
+        "взбитое молоко": "взбитого молока",
+        "горячая вода": "горячей воды",
+        "фильтрованная вода": "фильтрованной воды",
+        "кубики льда": "кубиков льда",
+        "апельсиновый сок": "апельсинового сока",
+        "сок лайма": "сока лайма",
+        "лимонный сок": "лимонного сока",
+        "кокосовое молоко": "кокосового молока",
+        "овсяное молоко": "овсяного молока",
+        "сгущенное молоко": "сгущенного молока",
+        "жирные сливки": "жирных сливок",
+        "замороженная клубника": "замороженной клубники",
+        "банан": "банана",
+    }
+    if label in forms:
+        return f"{amount} {forms[label]}"
+    return None
+
+
+def _normalize_line(line: str) -> str:
+    value = line.strip()
+    if not value:
+        return ""
+
+    labelled_patterns = [
+        (r"^(?P<amount>.+?)\s*-\s*temperature$", "Температура: {amount}"),
+        (r"^(?P<amount>.+?)\s*-\s*yield$", "Выход: {amount}"),
+        (r"^(?P<amount>.+?)\s*-\s*total time$", "Общее время: {amount}"),
+        (r"^(?P<amount>.+?)\s*-\s*grind size$", "Помол: {amount}"),
+        (r"^(?P<amount>.+?)\s*-\s*температура$", "Температура: {amount}"),
+        (r"^(?P<amount>.+?)\s*-\s*выход$", "Выход: {amount}"),
+        (r"^(?P<amount>.+?)\s*-\s*общее время$", "Общее время: {amount}"),
+        (r"^(?P<amount>.+?)\s*-\s*помол$", "Помол: {amount}"),
+    ]
+    for pattern, template in labelled_patterns:
+        match = re.match(pattern, value, flags=re.IGNORECASE)
+        if match:
+            return template.format(amount=match.group("amount").strip())
+
+    ingredient_match = re.match(r"^(?P<amount>.+?)\s*-\s*(?P<label>.+)$", value)
+    if ingredient_match:
+        amount = ingredient_match.group("amount").strip()
+        label = _translate_ingredient_label(ingredient_match.group("label"))
+        inflected = _inflected_ingredient(amount, label)
+        if inflected:
+            return inflected
+        return f"{amount} - {label}"
+
+    value = re.sub(
+        r"^(?P<amount>\d+(?:[.,]\d+)?)\s*г\s+кофейные зерна$",
+        lambda m: f"{m.group('amount')} г кофейных зерен",
+        value,
+        flags=re.IGNORECASE,
+    )
+    value = re.sub(
+        r"^(?P<amount>\d+(?:[.,]\d+)?)\s*г\s+зерно для фильтра$",
+        lambda m: f"{m.group('amount')} г зерна для фильтра",
+        value,
+        flags=re.IGNORECASE,
+    )
+    value = re.sub(
+        r"^(?P<amount>\d+(?:[.,]\d+)?)\s*г\s+замороженной клубники$",
+        lambda m: f"{m.group('amount')} г замороженной клубники",
+        value,
+        flags=re.IGNORECASE,
+    )
+    return value
+
+
+def _cleanup_text(text: str) -> str:
+    lines = []
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        line = _normalize_line(line)
+        line = re.sub(r"(\d+\))\s*", r"\1 ", line)
+        line = re.sub(r"(?<=\S)\(", " (", line)
+        line = re.sub(r"\s{2,}", " ", line)
+        line = re.sub(r"\s+\)", ")", line)
+        line = re.sub(r"\(\s+", "(", line)
+        line = re.sub(r"\s*:\s*", ": ", line)
+        line = re.sub(r"(\d+): (\d+)", r"\1:\2", line)
+        line = re.sub(r"\s*-\s*>", " -> ", line)
+        line = re.sub(r"\(\s*(\d)", r"(\1", line)
+
+        if re.match(r"^\d+\)\s+[а-яa-z]", line, flags=re.IGNORECASE):
+            line = line[:3] + line[3:].capitalize()
+        elif line:
+            line = line[0].upper() + line[1:]
+
+        lines.append(line)
+
+    text = "\n".join(lines)
+    text = re.sub(r"\.\s+(\d+\))", r".\n\1", text)
+    text = re.sub(r"(?<!^)\s+(\d+\))", r"\n\1", text, flags=re.MULTILINE)
+    text = re.sub(
+        r"(\n\d+\)\s+)([а-я])",
+        lambda m: m.group(1) + m.group(2).upper(),
+        text,
+    )
+    return text
+
+
+def translate_text(value: str) -> str:
+    text = value.strip()
+    if not text:
+        return text
+
+    for source, target in TEXT_REPLACEMENTS:
+        pattern = re.compile(re.escape(source), flags=re.IGNORECASE)
+        text = pattern.sub(target, text)
+
+    text = re.sub(r"(?<=\d)\s*gr\b", " г", text, flags=re.IGNORECASE)
+    text = re.sub(r"(?<=\d)\s*гр\b", " г", text, flags=re.IGNORECASE)
+    text = re.sub(r"(?<=\d)\s*pcs\b", " шт", text, flags=re.IGNORECASE)
+    text = re.sub(r"(?<=\d)\s*deg\b", " °C", text, flags=re.IGNORECASE)
+    text = re.sub(r"(?<=\d)\s*ml\b", " мл", text, flags=re.IGNORECASE)
+    text = re.sub(r"(?<=\d)\s*m\b", " мин", text)
+    text = re.sub(r"(?<=\d)\s*sec\b", " сек", text, flags=re.IGNORECASE)
+    text = re.sub(r"(?<=\d)l\b", " л", text, flags=re.IGNORECASE)
+    text = re.sub(r"\btonic\b", "тоник", text, flags=re.IGNORECASE)
+    text = re.sub(r"\baperol\b", "Апероль", text, flags=re.IGNORECASE)
+    text = re.sub(r"\borange slice\b", "долька апельсина", text, flags=re.IGNORECASE)
+    text = re.sub(r"\badd all ingredients to a glass\b", "добавьте все ингредиенты в стакан", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bwith filtered water\b", "с фильтрованной водой", text, flags=re.IGNORECASE)
+    text = re.sub(r"\binto the cup\(glass\)\b", "в чашку/стакан", text, flags=re.IGNORECASE)
+    text = re.sub(r"\binto the cup\b", "в чашку", text, flags=re.IGNORECASE)
+    text = re.sub(r"\binto the glass\b", "в стакан", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bin the remaining milk\b", "в оставшееся молоко", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bin the espresso\b", "в эспрессо", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bin the milk\b", "в молоко", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bin\s+оставшееся молоко\b", "в оставшееся молоко", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bin\s+эспрессо\b", "эспрессо", text, flags=re.IGNORECASE)
+    text = re.sub(r"влейте\s+in\s+", "влейте ", text, flags=re.IGNORECASE)
+    text = re.sub(r"затем\s+влейте\s+in\s+", "затем влейте ", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bвлейте в оставшееся молоко\b", "влейте оставшееся молоко", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bdegrees\b", "градусов", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bprepare\b", "приготовьте", text, flags=re.IGNORECASE)
+    text = re.sub(r"\badd\b", "добавьте", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bpour\b", "влейте", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bmix\b", "смешайте", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bstir\b", "перемешайте", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bboil\b", "вскипятите", text, flags=re.IGNORECASE)
+    text = re.sub(r"\ba kettle\b", "чайник", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bwith\b", "с", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bglass\b", "стакан", text, flags=re.IGNORECASE)
+    text = re.sub(r"\btemperature\b", "температура", text, flags=re.IGNORECASE)
+    text = re.sub(r"\byield\b", "выход", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bgrind size\b", "помол", text, flags=re.IGNORECASE)
+    text = re.sub(r"\btotal time\b", "общее время", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bthen\b", "затем", text, flags=re.IGNORECASE)
+    text = re.sub(r"\band\b", "и", text, flags=re.IGNORECASE)
+    text = re.sub(
+        r"вскипятите чайник at (\d+) градусов с фильтрованная вода",
+        r"вскипятите чайник с фильтрованной водой до \1 градусов",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(r"\s+\n", "\n", text)
+    return _cleanup_text(text)
