@@ -87,15 +87,20 @@ DEPLOY_RUN_USER=root
 AUTO_UPLOAD_TO_CLOUDINARY=true
 ```
 
-## Деплой на Railway
+## Деплой на Railway через GitHub
 
-Для Railway добавлены:
+Для Railway в репозитории есть [railway.toml](/home/valerya/Документы/Bots/CoffeNovi_bot/railway.toml:1). Railway прочитает его при деплое из GitHub, установит зависимости из `requirements.txt` и запустит бота командой:
 
-- [railway.toml](/home/valerya/Документы/Bots/CoffeNovi_bot/railway.toml:1) с явной командой запуска `python -m app.bot`.
-- [.railwayignore](/home/valerya/Документы/Bots/CoffeNovi_bot/.railwayignore:1), чтобы не загружать локальный `venv`, `.env`, кэши и временно извлеченные картинки.
-- [deploy_railway.sh](/home/valerya/Документы/Bots/CoffeNovi_bot/deploy_railway.sh:1) для деплоя через Railway CLI.
+```bash
+python -m app.bot
+```
 
-В Railway добавьте переменные окружения:
+Подключение:
+
+1. Запушьте проект в GitHub.
+2. В Railway выберите `New Project` -> `Deploy from GitHub repo`.
+3. Выберите репозиторий `Mikonila/coffenovi_bot`.
+4. В Variables добавьте:
 
 ```env
 BOT_TOKEN=...
@@ -106,18 +111,7 @@ CLOUDINARY_API_SECRET=...
 AUTO_UPLOAD_TO_CLOUDINARY=true
 ```
 
-`AUTO_UPLOAD_TO_CLOUDINARY=true` важен для Railway: `assets/images/` и `data/cloudinary_urls.json` не отправляются в деплой, поэтому бот извлечет картинки из Excel и создаст Cloudinary-кэш при старте контейнера.
-
-Первый запуск через CLI:
-
-```bash
-npm install -g @railway/cli
-railway login
-railway link
-./deploy_railway.sh
-```
-
-Если деплоите через GitHub-интеграцию Railway, достаточно подключить репозиторий: Railway прочитает `railway.toml`, установит зависимости из `requirements.txt` и запустит `python -m app.bot`.
+`AUTO_UPLOAD_TO_CLOUDINARY=true` нужен для Railway, потому что локальные `assets/images/` и `data/cloudinary_urls.json` не хранятся в GitHub. При старте контейнера бот извлечет изображения из Excel и создаст Cloudinary-кэш заново.
 
 ## Поведение бота
 
