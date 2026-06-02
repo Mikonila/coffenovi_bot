@@ -145,9 +145,18 @@ INGREDIENT_TRANSLATIONS = {
     "cacao powder/50gr cacao sauce": "какао-порошок / 50 г какао-соуса",
     "cacao powder": "какао-порошок",
     "cacao sauce": "какао-соус",
+    "white sugar": "белый сахар",
+    "sugar": "сахар",
 }
 
 TEXT_REPLACEMENTS = [
+    ("fill up cacaos' cup with 40gr hot water", "налейте 40 г горячей воды в чашку для какао"),
+    ("fill up cacaos' cup with 40 g hot water", "налейте 40 г горячей воды в чашку для какао"),
+    ("fill up cacaos' cup with 40gr горячая вода", "налейте 40 г горячей воды в чашку для какао"),
+    ("fill up cacaos' cup with 40 g горячая вода", "налейте 40 г горячей воды в чашку для какао"),
+    ("pour into the pitcher milk and sugar", "налейте молоко и добавьте сахар в питчер"),
+    ("pour in the pitcher milk and sugar", "налейте молоко и добавьте сахар в питчер"),
+    ("steamed it", "взбейте паром"),
     ("prepare espresso using brew ratio", "приготовьте эспрессо с brew ratio"),
     ("the weight of the espresso must be within", "вес эспрессо должен быть в пределах"),
     ("mix hot and cold water into the  cup", "смешайте горячую и холодную воду в чашке"),
@@ -225,6 +234,11 @@ TEXT_REPLACEMENTS = [
     ("filtered water", "фильтрованная вода"),
     ("sparkling water", "газированная вода"),
     ("sparkling wine", "игристое вино"),
+    ("cacao powder/50gr cacao sauce", "какао-порошок / 50 г какао-соуса"),
+    ("cacao powder", "какао-порошок"),
+    ("cacao sauce", "какао-соус"),
+    ("white sugar", "белый сахар"),
+    ("sugar", "сахар"),
     ("mix cream", "смесь сливок"),
     ("fat cream", "жирные сливки"),
     ("oat  milk", "овсяное молоко"),
@@ -313,6 +327,10 @@ def _inflected_ingredient(amount: str, label: str) -> str | None:
         "овсяное молоко": "овсяного молока",
         "сгущенное молоко": "сгущенного молока",
         "жирные сливки": "жирных сливок",
+        "какао-порошок": "какао-порошка",
+        "какао-соус": "какао-соуса",
+        "белый сахар": "белого сахара",
+        "сахар": "сахара",
         "замороженная клубника": "замороженной клубники",
         "банан": "банана",
     }
@@ -341,7 +359,7 @@ def _normalize_line(line: str) -> str:
         if match:
             return template.format(amount=match.group("amount").strip())
 
-    ingredient_match = re.match(r"^(?P<amount>.+?)\s*-\s*(?P<label>.+)$", value)
+    ingredient_match = re.match(r"^(?P<amount>.+?)\s+-\s*(?P<label>.+)$", value)
     if ingredient_match:
         amount = ingredient_match.group("amount").strip()
         label = _translate_ingredient_label(ingredient_match.group("label"))
@@ -424,6 +442,42 @@ def translate_text(value: str) -> str:
     text = re.sub(r"(?<=\d)\s*m\b", " мин", text)
     text = re.sub(r"(?<=\d)\s*sec\b", " сек", text, flags=re.IGNORECASE)
     text = re.sub(r"(?<=\d)l\b", " л", text, flags=re.IGNORECASE)
+    text = re.sub(
+        r"(?P<powder>\d+(?:[.,]\d+)?)\s*г\s+какао-порошок\s*/\s*"
+        r"(?P<sauce>\d+(?:[.,]\d+)?)\s*г\s+какао-соуса?",
+        lambda m: f"{m.group('powder')} г какао-порошка / {m.group('sauce')} г какао-соуса",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r"(?P<amount>\d+(?:[.,]\d+)?)\s*г\s+белый сахар\b",
+        lambda m: f"{m.group('amount')} г белого сахара",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r"(?P<amount>\d+(?:[.,]\d+)?)\s*г\s+сахар\b",
+        lambda m: f"{m.group('amount')} г сахара",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r"fill up cacaos' cup\s+с\s+(?P<amount>\d+(?:[.,]\d+)?)\s*г\s+горячая вода",
+        lambda m: f"налейте {m.group('amount')} г горячей воды в чашку для какао",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r"влейте\s+into the pitcher\s+milk\s+и\s+sugar",
+        "налейте молоко и добавьте сахар в питчер",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r"(?im)^(\d+\)\s*)?(?:add|добавьте) powder$",
+        lambda m: f"{m.group(1) or ''}добавьте какао-порошок",
+        text,
+    )
     text = re.sub(r"\btonic\b", "тоник", text, flags=re.IGNORECASE)
     text = re.sub(r"\baperol\b", "Апероль", text, flags=re.IGNORECASE)
     text = re.sub(r"\borange slice\b", "долька апельсина", text, flags=re.IGNORECASE)
@@ -456,6 +510,7 @@ def translate_text(value: str) -> str:
     text = re.sub(r"\btotal time\b", "общее время", text, flags=re.IGNORECASE)
     text = re.sub(r"\bthen\b", "затем", text, flags=re.IGNORECASE)
     text = re.sub(r"\band\b", "и", text, flags=re.IGNORECASE)
+    text = re.sub(r"латте\s*-\s*арт", "латте-арт", text, flags=re.IGNORECASE)
     text = re.sub(
         r"вскипятите чайник at (\d+) градусов с фильтрованная вода",
         r"вскипятите чайник с фильтрованной водой до \1 градусов",
