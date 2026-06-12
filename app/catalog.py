@@ -359,6 +359,32 @@ def _append_reference_category(
     categories.append(category)
 
 
+def _apply_drink_text_fixes(drink: Drink, source_name: str) -> None:
+    normalized_name = " ".join(source_name.strip().upper().split())
+    if normalized_name != "CHERRY CREAM":
+        return
+
+    drink.recipe = "\n".join(
+        [
+            "8 шт (100 г) кубиков льда",
+            "20 г - вишневый сироп",
+            "40 г - жирные сливки (>30%)",
+            "Основа на выбор:",
+            "40 г - концентрат колд брю + 80 г воды",
+            "или 150 г - холодный фильтр",
+        ]
+    )
+    drink.method = "\n".join(
+        [
+            "1) Добавьте в питчер вишневый сироп и кофейную основу; если используете концентрат, добавьте воду. Тщательно перемешайте",
+            "2) Взбейте сливки электрическим венчиком в течение 30 секунд",
+            "3) Добавьте лед в стакан",
+            "4) Влейте жидкость",
+            "5) Влейте сливки",
+        ]
+    )
+
+
 def load_catalog(settings: Settings) -> Catalog:
     with zipfile.ZipFile(settings.workbook_path) as archive:
         sheet_path = _sheet_path_by_name(archive, TARGET_SHEET_NAME)
@@ -393,19 +419,19 @@ def load_catalog(settings: Settings) -> Catalog:
             if current_category is None:
                 continue
 
-            current_category.drinks.append(
-                Drink(
-                    id=f"drink:{row_number}",
-                    name=display_drink_name(name),
-                    category_id=current_category.id,
-                    category_name=current_category.name,
-                    row_number=row_number,
-                    volume=translate_text(values.get("B", "")),
-                    recipe=translate_text(values.get("C", "")),
-                    method=translate_text(values.get("D", "")),
-                    serving=translate_text(values.get("E", "")),
-                )
+            drink = Drink(
+                id=f"drink:{row_number}",
+                name=display_drink_name(name),
+                category_id=current_category.id,
+                category_name=current_category.name,
+                row_number=row_number,
+                volume=translate_text(values.get("B", "")),
+                recipe=translate_text(values.get("C", "")),
+                method=translate_text(values.get("D", "")),
+                serving=translate_text(values.get("E", "")),
             )
+            _apply_drink_text_fixes(drink, name)
+            current_category.drinks.append(drink)
 
         if current_category is not None:
             current_category.end_row = LAST_DRINK_ROW
