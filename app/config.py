@@ -33,6 +33,7 @@ class Settings:
     bot_token: str | None
     admin_user_ids: frozenset[int]
     workbook_path: Path
+    drink_cards_path: Path
     assets_dir: Path
     cloudinary_cache_path: Path
     cloudinary_cloud_name: str | None
@@ -86,6 +87,12 @@ def load_settings(*, require_bot_token: bool = True) -> Settings:
     if not workbook_path.is_absolute():
         workbook_path = (project_dir / workbook_path).resolve()
 
+    drink_cards_path = Path(
+        os.getenv("DRINK_CARDS_PATH", str(project_dir / "data" / "drink_cards.json"))
+    )
+    if not drink_cards_path.is_absolute():
+        drink_cards_path = (project_dir / drink_cards_path).resolve()
+
     assets_dir = Path(os.getenv("ASSETS_DIR", str(project_dir / "assets" / "images")))
     if not assets_dir.is_absolute():
         assets_dir = (project_dir / assets_dir).resolve()
@@ -101,6 +108,7 @@ def load_settings(*, require_bot_token: bool = True) -> Settings:
         bot_token=bot_token,
         admin_user_ids=_parse_admin_user_ids(os.getenv("ADMIN_USER_IDS")),
         workbook_path=workbook_path,
+        drink_cards_path=drink_cards_path,
         assets_dir=assets_dir,
         cloudinary_cache_path=cache_path,
         cloudinary_cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),

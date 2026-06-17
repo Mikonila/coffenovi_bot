@@ -64,7 +64,7 @@ DRINK_NAME_DISPLAY = {
     "VANILLA SKY": "Vanilla Sky",
     "LATTE CHICORY": "Latte Chicory",
     "LATTE MATCHA": "Latte Matcha",
-    "ASSAM TEA": "Assam Tea",
+    "ASSAM TEA": "Assam Tea (Black Tea)",
     "DARJEELING TEA": "Darjeeling Tea",
     "GREEN TEA": "Green Tea",
     "JASMINE TEA": "Jasmine Tea",

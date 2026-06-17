@@ -80,6 +80,12 @@ if [[ -f "data/cloudinary_urls.json" ]]; then
     "${SSH_TARGET}:${DEPLOY_PATH}/data/cloudinary_urls.json"
 fi
 
+if [[ -f "data/drink_cards.json" ]]; then
+  rsync -avz -e "${RSYNC_RSH}" \
+    ./data/drink_cards.json \
+    "${SSH_TARGET}:${DEPLOY_PATH}/data/drink_cards.json"
+fi
+
 echo "Installing dependencies on server"
 
 ssh -p "${DEPLOY_PORT}" "${SSH_TARGET}" <<EOF

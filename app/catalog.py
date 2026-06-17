@@ -25,6 +25,7 @@ SPREADSHEET_NS = {
 }
 TARGET_SHEET_NAME = "Drinks"
 LAST_DRINK_ROW = 86
+DRINK_CARD_FIELDS = ("volume", "recipe", "method", "serving")
 
 
 @dataclass(slots=True)
@@ -279,6 +280,157 @@ def _load_cloudinary_cache(cache_path: Path) -> dict[str, str]:
     raise RuntimeError(f"Unexpected Cloudinary cache format in {cache_path}.")
 
 
+def _card_storage_key(row_number: int) -> str:
+    return f"drink:{row_number}"
+
+
+def _manual_card_overrides() -> dict[str, dict[str, str]]:
+    return {
+        "CHERRY CREAM": {
+            "recipe": "\n".join(
+                [
+                    "8 шт (100 г) кубиков льда",
+                    "20 г - вишневый сироп",
+                    "40 г - жирные сливки (>30%)",
+                    "Основа на выбор:",
+                    "40 г - концентрат колд брю + 80 г воды",
+                    "или 150 г - холодный фильтр",
+                ]
+            ),
+            "method": "\n".join(
+                [
+                    "1) Добавьте в питчер вишневый сироп и кофейную основу; если используете концентрат, добавьте воду. Тщательно перемешайте",
+                    "2) Взбейте сливки электрическим венчиком в течение 30 секунд",
+                    "3) Добавьте лед в стакан",
+                    "4) Влейте жидкость",
+                    "5) Влейте сливки",
+                ]
+            ),
+        },
+        "ORANGE POWDER": {
+            "recipe": "\n".join(
+                [
+                    "250 г сахара",
+                    "23 г - сушеная апельсиновая цедра",
+                    "6 г - сушеная лимонная цедра",
+                ]
+            ),
+            "method": "\n".join(
+                [
+                    "1) Добавьте сушеную апельсиновую и лимонную цедру, а также белый сахар в блендер.",
+                    "2) Измельчите все на высокой скорости до однородности, периодически встряхивая стакан блендера.",
+                ]
+            ),
+        },
+        "LAVANDER POWDER": {
+            "recipe": "\n".join(
+                [
+                    "280 г сахара",
+                    "10 г - сушеная лаванда",
+                    "3 г - соль",
+                ]
+            ),
+            "method": "\n".join(
+                [
+                    "1) Добавьте сушеную лаванду, белый сахар и соль в блендер.",
+                    "2) Измельчите все на высокой скорости до однородности, периодически встряхивая стакан блендера.",
+                ]
+            ),
+        },
+    }
+
+
+def _build_translated_card(
+    *,
+    row_number: int,
+    source_name: str,
+    category_name: str,
+    values: dict[str, str],
+) -> dict[str, str | int]:
+    payload: dict[str, str | int] = {
+        "id": _card_storage_key(row_number),
+        "row_number": row_number,
+        "source_name": source_name,
+        "name": display_drink_name(source_name),
+        "category_name": category_name,
+        "volume": translate_text(values.get("B", "")),
+        "recipe": translate_text(values.get("C", "")),
+        "method": translate_text(values.get("D", "")),
+        "serving": translate_text(values.get("E", "")),
+    }
+    payload.update(_manual_card_overrides().get(" ".join(source_name.strip().upper().split()), {}))
+    return payload
+
+
+def _load_drink_cards(cards_path: Path) -> dict[str, dict[str, str]]:
+    if not cards_path.exists():
+        return {}
+
+    payload = json.loads(cards_path.read_text(encoding="utf-8"))
+    drinks_payload = payload.get("drinks", payload) if isinstance(payload, dict) else None
+    if not isinstance(drinks_payload, dict):
+        raise RuntimeError(f"Unexpected drink cards format in {cards_path}.")
+
+    cards: dict[str, dict[str, str]] = {}
+    for key, raw_card in drinks_payload.items():
+        if not isinstance(raw_card, dict):
+            continue
+
+        card: dict[str, str] = {}
+        card["id"] = str(raw_card.get("id", key)).strip()
+        try:
+            card["row_number"] = int(raw_card.get("row_number", 0))
+        except (TypeError, ValueError):
+            card["row_number"] = 0
+
+        for field in ("source_name", "name", "category_name", *DRINK_CARD_FIELDS):
+            value = raw_card.get(field, "")
+            if value is None:
+                card[field] = ""
+            elif isinstance(value, str):
+                card[field] = value.strip()
+            else:
+                card[field] = str(value).strip()
+        cards[str(key)] = card
+    return cards
+
+
+def _append_manual_cards(
+    categories: list[Category],
+    stored_cards: dict[str, dict[str, str]],
+    existing_ids: set[str],
+) -> None:
+    categories_by_name = {category.name: category for category in categories}
+    for card_id, card in sorted(
+        stored_cards.items(),
+        key=lambda item: (int(item[1].get("row_number", 0)), item[0]),
+    ):
+        if card_id in existing_ids:
+            continue
+
+        category_name = card.get("category_name", "")
+        category = categories_by_name.get(category_name)
+        if category is None:
+            continue
+
+        category.drinks.append(
+            Drink(
+                id=card_id,
+                name=card.get("name", "") or card.get("source_name", "") or card_id,
+                category_id=category.id,
+                category_name=category.name,
+                row_number=int(card.get("row_number", 0)),
+                volume=card.get("volume", ""),
+                recipe=card.get("recipe", ""),
+                method=card.get("method", ""),
+                serving=card.get("serving", ""),
+            )
+        )
+
+    for category in categories:
+        category.drinks.sort(key=lambda drink: (drink.row_number, drink.id))
+
+
 def _append_reference_category(
     rows: dict[int, dict[str, str]],
     categories: list[Category],
@@ -358,34 +510,44 @@ def _append_reference_category(
 
     categories.append(category)
 
+def export_drink_cards(settings: Settings) -> dict[str, dict[str, str | int]]:
+    with zipfile.ZipFile(settings.workbook_path) as archive:
+        sheet_path = _sheet_path_by_name(archive, TARGET_SHEET_NAME)
+        rows = _parse_sheet_rows(archive, sheet_path)
 
-def _apply_drink_text_fixes(drink: Drink, source_name: str) -> None:
-    normalized_name = " ".join(source_name.strip().upper().split())
-    if normalized_name != "CHERRY CREAM":
-        return
+    cards: dict[str, dict[str, str | int]] = {}
+    current_category_name = ""
+    for row_number in sorted(rows):
+        if row_number < 2 or row_number > LAST_DRINK_ROW:
+            continue
 
-    drink.recipe = "\n".join(
-        [
-            "8 шт (100 г) кубиков льда",
-            "20 г - вишневый сироп",
-            "40 г - жирные сливки (>30%)",
-            "Основа на выбор:",
-            "40 г - концентрат колд брю + 80 г воды",
-            "или 150 г - холодный фильтр",
-        ]
-    )
-    drink.method = "\n".join(
-        [
-            "1) Добавьте в питчер вишневый сироп и кофейную основу; если используете концентрат, добавьте воду. Тщательно перемешайте",
-            "2) Взбейте сливки электрическим венчиком в течение 30 секунд",
-            "3) Добавьте лед в стакан",
-            "4) Влейте жидкость",
-            "5) Влейте сливки",
-        ]
-    )
+        values = rows[row_number]
+        source_name = values.get("A", "").strip()
+        if not source_name:
+            continue
+
+        detail_present = any(values.get(column, "").strip() for column in ("B", "C", "D", "E"))
+        if not detail_present:
+            current_category_name = translate_category_name(source_name)
+            continue
+
+        if not current_category_name:
+            continue
+
+        card = _build_translated_card(
+            row_number=row_number,
+            source_name=source_name,
+            category_name=current_category_name,
+            values=values,
+        )
+        cards[str(card["id"])] = card
+
+    return cards
 
 
 def load_catalog(settings: Settings) -> Catalog:
+    stored_cards = _load_drink_cards(settings.drink_cards_path)
+    existing_ids: set[str] = set()
     with zipfile.ZipFile(settings.workbook_path) as archive:
         sheet_path = _sheet_path_by_name(archive, TARGET_SHEET_NAME)
         rows = _parse_sheet_rows(archive, sheet_path)
@@ -419,34 +581,50 @@ def load_catalog(settings: Settings) -> Catalog:
             if current_category is None:
                 continue
 
+            stored_card = stored_cards.get(_card_storage_key(row_number), {})
+            if stored_card:
+                card_name = stored_card.get("name") or display_drink_name(name)
+                volume = stored_card.get("volume", "")
+                recipe = stored_card.get("recipe", "")
+                method = stored_card.get("method", "")
+                serving = stored_card.get("serving", "")
+            else:
+                default_card = _build_translated_card(
+                    row_number=row_number,
+                    source_name=name,
+                    category_name=current_category.name,
+                    values=values,
+                )
+                card_name = str(default_card["name"])
+                volume = str(default_card["volume"])
+                recipe = str(default_card["recipe"])
+                method = str(default_card["method"])
+                serving = str(default_card["serving"])
+
             drink = Drink(
-                id=f"drink:{row_number}",
-                name=display_drink_name(name),
+                id=_card_storage_key(row_number),
+                name=card_name,
                 category_id=current_category.id,
                 category_name=current_category.name,
                 row_number=row_number,
-                volume=translate_text(values.get("B", "")),
-                recipe=translate_text(values.get("C", "")),
-                method=translate_text(values.get("D", "")),
-                serving=translate_text(values.get("E", "")),
+                volume=volume,
+                recipe=recipe,
+                method=method,
+                serving=serving,
             )
-            _apply_drink_text_fixes(drink, name)
+            existing_ids.add(drink.id)
             current_category.drinks.append(drink)
 
         if current_category is not None:
             current_category.end_row = LAST_DRINK_ROW
 
+        _append_manual_cards(categories, stored_cards, existing_ids)
         _append_reference_category(rows, categories)
 
         all_image_ids: set[str] = set()
         for category in categories:
             for drink in category.drinks:
-                drink.image_ids = _nearest_images(
-                    drink.row_number,
-                    category.row_number,
-                    category.end_row,
-                    row_images,
-                )
+                drink.image_ids = row_images.get(drink.row_number, [])
                 all_image_ids.update(drink.image_ids)
 
         image_registry = _extract_images(archive, settings.assets_dir, all_image_ids)
