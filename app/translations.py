@@ -118,6 +118,7 @@ INGREDIENT_TRANSLATIONS = {
     "mix cream": "смесь сливок",
     "fat cream (>30%)": "жирные сливки (>30%)",
     "fat cream": "жирные сливки",
+    "fat cream >30%": "жирные сливки >30%",
     "cold brew concentrate": "концентрат колд брю",
     "cold brew concetrate": "концентрат колд брю",
     "cold filter": "холодный фильтр",
@@ -144,9 +145,20 @@ INGREDIENT_TRANSLATIONS = {
     "tabasco": "табаско",
     "carnation": "гвоздика",
     "matcha": "матча",
+    "chicory": "цикорий",
+    "lemongrass": "лемонграсс",
+    "dried orange zest": "сушеная апельсиновая цедра",
+    "dried lemon zest": "сушеная лимонная цедра",
+    "dried lavender": "сушеная лаванда",
+    "dried lavander": "сушеная лаванда",
     "frozen strawberry": "замороженная клубника",
     "banana": "банан",
     "schweppes": "Schweppes",
+    "ginger": "имбирь",
+    "salt": "соль",
+    "milk (barista)": "молоко бариста",
+    "cherry bitter": "вишневый биттер",
+    "sea buckthorn berries": "ягоды облепихи",
     "cacao powder/50gr cacao sauce": "какао-порошок / 50 г какао-соуса",
     "cacao powder": "какао-порошок",
     "cacao sauce": "какао-соус",
@@ -162,6 +174,7 @@ TEXT_REPLACEMENTS = [
     ("pour into the pitcher milk and sugar", "налейте молоко и добавьте сахар в питчер"),
     ("pour in the pitcher milk and sugar", "налейте молоко и добавьте сахар в питчер"),
     ("steamed it", "взбейте паром"),
+    ("steamed it and serve", "взбейте паром и подавайте"),
     ("add all to the saucepan", "добавьте все ингредиенты в сотейник"),
     ("leave the saucepan for 10 minutes at medium power-temperature", "оставьте сотейник на среднем нагреве на 10 минут"),
     ("leave the saucepan for 10 minutes at medium power - temperature", "оставьте сотейник на среднем нагреве на 10 минут"),
@@ -212,6 +225,7 @@ TEXT_REPLACEMENTS = [
     ("prepare an espresso into the small pitcher", "приготовьте эспрессо в маленький питчер"),
     ("add ice into the glass", "добавьте лед в стакан"),
     ("add tonic", "добавьте тоник"),
+    ("add tonic and cold brew on top", "добавьте тоник и сверху влейте колд брю"),
     ("pour in an espresso on top", "влейте сверху эспрессо"),
     ("pour in the cream", "влейте сливки"),
     ("pour in the liquid", "влейте жидкость"),
@@ -299,6 +313,34 @@ TEXT_REPLACEMENTS = [
     ("boil a kettle at 100 degrees with filtered water", "вскипятите чайник с фильтрованной водой до 100 градусов"),
     ("add tea to the tea pot", "добавьте чай в чайник"),
     ("add water to the tea pot", "добавьте воду в чайник"),
+    ("add hot water to the tea pot", "добавьте горячую воду в чайник"),
+    ("stir it thoroughly and serve", "тщательно перемешайте и подавайте"),
+    ("mix together", "смешайте"),
+    ("fill small lattes' cup with 20gr hot water", "налейте 20 г горячей воды в маленькую чашку для латте"),
+    ("fill small latte cup with 20gr hot water", "налейте 20 г горячей воды в маленькую чашку для латте"),
+    ("add powder and syrup into the glass", "добавьте порошок и сироп в стакан"),
+    ("stir it with spoon thoroughly", "тщательно перемешайте ложкой"),
+    ("steamed milk and pour in the milk using the latte art technique.", "взбейте молоко паром и влейте его в стакан в технике латте-арт."),
+    ("cut the dry part of the lemongrass, and then push the entire stem with a muddler.", "срежьте сухую часть лемонграсса, затем раздавите стебель мадлером."),
+    ("cut the crushed lemongrass into pieces ~ 3-4 cm each.", "нарежьте раздавленный лемонграсс на кусочки по 3-4 см."),
+    ("add white sugar to a saucepan and melt until it becomes a liquid caramel. (important: do not bring the caramel to a state and do not let it “burn”)", "добавьте белый сахар в сотейник и растопите до состояния жидкой карамели. Важно: не дайте карамели подгореть."),
+    ("add lemongrass to the saucepan with caramel and mix thoroughly, gradually reducing power and temperature.", "добавьте лемонграсс в сотейник с карамелью и тщательно перемешайте, постепенно уменьшая нагрев."),
+    ("add cream mix. stir and leave on low power-temperature for 10 minutes.", "добавьте смесь сливок, перемешайте и оставьте на слабом нагреве на 10 минут."),
+    ("add white sugar to a saucepan and melt until it reaches a liquid caramel color. (important: do not let the caramel turn black and do not let it “burn”)", "добавьте белый сахар в сотейник и растопите до жидкой карамели. Важно: не дайте карамели почернеть и подгореть."),
+    ("add the cream mix to the saucepan. stir and leave on low power-temperature for 10 minutes.", "добавьте смесь сливок в сотейник, перемешайте и оставьте на слабом нагреве на 10 минут."),
+    ("carefully add water to the saucepan.", "аккуратно добавьте воду в сотейник."),
+    ("place all ingredients in a blender, blend until smooth (there should be no lumps)", "поместите все ингредиенты в блендер и взбейте до однородности, без комочков."),
+    ("beat everything at high power until smooth, shaking the glasses periodically for a better result.", "измельчите все на высокой скорости до однородности, периодически встряхивая стакан блендера."),
+    ("mix cream and milk in a bottle.", "смешайте смесь сливок и молоко в бутылке."),
+    ("at medium power-temperature, periodically stirring until the sugar is completely dissolved", "держите на среднем нагреве, периодически помешивая, пока сахар полностью не растворится."),
+    ("add all the ingredients to the kettle and stir with a spoon.", "добавьте все ингредиенты в чайник и перемешайте ложкой."),
+    ("add all the ingredients to the pan. cut the fruit into small pieces", "добавьте все ингредиенты в кастрюлю. Нарежьте фрукты небольшими кусочками."),
+    ("turn on the medium heat and bring the workpiece to 90-95 degrees", "поставьте на средний огонь и доведите заготовку до 90-95 градусов."),
+    ("when serving to the guest, preheat with a steamer to 60 degrees.", "при подаче подогрейте паром до 60 градусов."),
+    ("add dried orange and lemon zest and white sugar to the blender.", "добавьте сушеную апельсиновую и лимонную цедру, а также белый сахар в блендер."),
+    ("add dried lavender, white sugar and salt to a blender.", "добавьте сушеную лаванду, белый сахар и соль в блендер."),
+    ("stir at medium temperature until cocoa is completely dissolved.", "перемешивайте на среднем нагреве, пока какао полностью не растворится."),
+    ("create art with etching technique", "сделайте рисунок в технике этчинг"),
     ("garnish with orange slice", "украсьте долькой апельсина"),
     ("garnish with lemon/lime", "украсьте лимоном или лаймом"),
     ("garnish", "украсьте"),
@@ -382,7 +424,7 @@ def _normalize_line(line: str) -> str:
         if match:
             return template.format(amount=match.group("amount").strip())
 
-    ingredient_match = re.match(r"^(?P<amount>.+?)\s+-\s*(?P<label>.+)$", value)
+    ingredient_match = re.match(r"^(?P<amount>.+?)\s*-\s*(?P<label>.+)$", value)
     if ingredient_match:
         amount = ingredient_match.group("amount").strip()
         label = _translate_ingredient_label(ingredient_match.group("label"))
@@ -420,6 +462,7 @@ def _cleanup_text(text: str) -> str:
             continue
 
         line = _normalize_line(line)
+        line = re.sub(r"^(\d+)\.\s*", r"\1) ", line)
         line = re.sub(r"(\d+\))\s*", r"\1 ", line)
         line = re.sub(r"(?<=\S)\(", " (", line)
         line = re.sub(r"\s{2,}", " ", line)
@@ -541,4 +584,65 @@ def translate_text(value: str) -> str:
         flags=re.IGNORECASE,
     )
     text = re.sub(r"\s+\n", "\n", text)
-    return _cleanup_text(text)
+    text = re.sub(r"\bbrew ratio\b", "соотношение заваривания", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bhot вода\b", "горячая вода", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bгорячая вода to the tea pot\b", "горячую воду в чайник", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bvanilla сахар\b", "ванильный сахар", text, flags=re.IGNORECASE)
+    text = re.sub(r"\blemongrass\b", "лемонграсс", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bcream\(yellow\)\b", "сливки (желтые)", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bturmeric\(куркума\)\b", "куркума", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bsesame seeds on top\b", "кунжут сверху", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bpop corn on top\b", "попкорн сверху", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bserve\b", "подавайте", text, flags=re.IGNORECASE)
+    text = re.sub(r"\betching\b", "этчинг", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bratio\s*1:2\b", "соотношение 1:2", text, flags=re.IGNORECASE)
+    text = re.sub(r"\b1 liter cherry juice\b", "1 л вишневого сока", text, flags=re.IGNORECASE)
+    text = re.sub(r"\b1 sliced green apple\b", "1 зеленое яблоко, нарезанное дольками", text, flags=re.IGNORECASE)
+    text = re.sub(r"\b1 sliced orange\b", "1 апельсин, нарезанный дольками", text, flags=re.IGNORECASE)
+    text = re.sub(r"\b1/4 sliced lemon\b", "1/4 лимона, нарезанного дольками", text, flags=re.IGNORECASE)
+    text = re.sub(r"\b0\.5 cinnamons stick \+ 2 dashes of cinnamon powder\b", "0,5 палочки корицы + 2 щепотки молотой корицы", text, flags=re.IGNORECASE)
+    text = re.sub(r"\b10 г sliced имбирь\b", "10 г нарезанного имбиря", text, flags=re.IGNORECASE)
+    text = re.sub(r"\b10 шт гвоздикаs\b", "10 шт гвоздики", text, flags=re.IGNORECASE)
+    text = re.sub(r"\b3 drops of табаско\b", "3 капли табаско", text, flags=re.IGNORECASE)
+    text = re.sub(r"\b110 sparkling wine on top\b", "110 г игристого вина сверху", text, flags=re.IGNORECASE)
+    text = re.sub(r"\b20ml cherry syrup\b", "20 мл вишневого сиропа", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bwhite sugar 200 г vanilla sugar 200 г\b", "200 г белого сахара\n200 г ванильного сахара", text, flags=re.IGNORECASE)
+    text = re.sub(r"\b120 g белый сахар\b", "120 г белого сахара", text, flags=re.IGNORECASE)
+    text = re.sub(r"\b220 g halva\b", "220 г халвы", text, flags=re.IGNORECASE)
+    text = re.sub(r"\b270 g filtered hot вода \(80°C\)\b", "270 г горячей фильтрованной воды (80°C)", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bcb 220 мл bottle \(closed\)\b", "бутылка колд брю 220 мл (закрытая)", text, flags=re.IGNORECASE)
+    text = re.sub(r"\b4 шт of an ice\b", "4 шт льда", text, flags=re.IGNORECASE)
+    text = re.sub(r"\b5 г - sea buckthorn berries\b", "5 г - ягод облепихи", text, flags=re.IGNORECASE)
+    text = re.sub(r"\b170 грр - Schweppes\b", "170 г - Schweppes", text, flags=re.IGNORECASE)
+    text = _cleanup_text(text)
+    text = re.sub(
+        r"(?im)^\d+\)\s*добавьте белый сахар to a saucepan и melt until it becomes a liquid caramel\.\s*\(important: do not bring the caramel to a state и do not let it “burn”\)$",
+        "3) Добавьте белый сахар в сотейник и растопите до состояния жидкой карамели. Важно: не дайте карамели подгореть.",
+        text,
+    )
+    text = re.sub(
+        r"(?im)^\d+\)\s*добавьте белый сахар to a saucepan и melt until it reaches a liquid caramel color\.\s*\(important: do not let the caramel turn black и do not let it “burn”\)$",
+        "1) Добавьте белый сахар в сотейник и растопите до жидкой карамели. Важно: не дайте карамели почернеть и подгореть.",
+        text,
+    )
+    text = re.sub(r"(?im)^\d+\)\s*добавьте salt$", "3) Добавьте соль", text)
+    text = re.sub(r"(?im)^\d+\)\s*добавьте milk и сгущенное молоко to the pitcher$", "2) Добавьте молоко и сгущенное молоко в питчер", text)
+    text = re.sub(r"(?im)^\d+\)\s*влейте в молоко in the стакан$", "4) Влейте молоко в стакан", text)
+    text = re.sub(r"(?im)^\d+\)\s*fill small lattes?' cup с 20 г горячая вода$", "1) Налейте 20 г горячей воды в маленькую чашку для латте", text)
+    text = re.sub(r"(?im)^\d+\)\s*взбитое молоко и влейте в молоко using the latte art technique\.$", "4) Взбейте молоко паром и влейте его в стакан в технике латте-арт.", text)
+    text = re.sub(r"(?im)^1 г rosemary$", "1 г розмарина", text)
+    text = re.sub(r"(?im)^10 г sliced имбирь$", "10 г нарезанного имбиря", text)
+    text = re.sub(r"(?im)^\d+\)\s*cook over medium heat for 10 - 15 minutes\.$", "3) Готовьте на среднем огне 10-15 минут.", text)
+    text = re.sub(r"(?im)^\d+\)\s*drain into a saucepan through a sieve, cool\.$", "4) Процедите через сито в кастрюлю и остудите.", text)
+    text = re.sub(r"(?im)^20 мл вишневый сироп$", "20 мл вишневого сиропа", text)
+    text = re.sub(r"(?im)^110 игристое вино on top$", "110 г игристого вина сверху", text)
+    text = re.sub(r"(?im)^\d+\)\s*добавьте ice, bitter, syrup, апельсиновый сок$", "1) Добавьте лед, биттер, сироп и апельсиновый сок", text)
+    text = re.sub(r"(?im)^\d+\)\s*добавьте игристое вино on top$", "3) Добавьте сверху игристое вино", text)
+    text = re.sub(r"(?im)^белый сахар 200 г ванильный сахар 200 г$", "200 г белого сахара\n200 г ванильного сахара", text)
+    text = re.sub(r"(?im)^270 g filtered горячая вода \(80°C\)$", "270 г горячей фильтрованной воды (80°C)", text)
+    text = _cleanup_text(text)
+    text = re.sub(r"латте\s*-\s*арт", "латте-арт", text, flags=re.IGNORECASE)
+    text = re.sub(r"(?im)^10 г sliced ginger$", "10 г нарезанного имбиря", text)
+    text = re.sub(r"\.\s+важно:", ". Важно:", text)
+    text = re.sub(r"\.\s+нарежьте", ". Нарежьте", text)
+    return text
