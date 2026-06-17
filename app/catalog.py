@@ -59,6 +59,21 @@ class Catalog:
     categories: list[Category]
     drinks_by_id: dict[str, Drink]
     image_registry: dict[str, Path]
+    info_pages: dict[str, "InfoPage"]
+
+
+@dataclass(slots=True)
+class InfoSection:
+    id: str
+    title: str
+    body: str
+
+
+@dataclass(slots=True)
+class InfoPage:
+    id: str
+    title: str
+    sections: list[InfoSection] = field(default_factory=list)
 
 
 REFERENCE_GRIND_TRANSLATIONS = {
@@ -431,6 +446,261 @@ def _append_manual_cards(
         category.drinks.sort(key=lambda drink: (drink.row_number, drink.id))
 
 
+def _normalize_multiline_text(value: str) -> str:
+    lines = []
+    for raw_line in value.splitlines():
+        line = " ".join(raw_line.strip().split())
+        if not line:
+            continue
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def _format_task(number: str, text: str) -> str:
+    task_text = _normalize_multiline_text(text)
+    if not task_text:
+        return ""
+    number = number.strip()
+    if number:
+        return f"{number} {task_text}"
+    return task_text
+
+
+def _slugify_info_title(value: str, fallback: str) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+    return normalized or fallback
+
+
+def _format_daily_cleaning_section(tasks: str, comments: str) -> str:
+    parts = []
+    tasks_text = _normalize_multiline_text(tasks)
+    comments_text = _normalize_multiline_text(comments)
+    if tasks_text:
+        parts.append(tasks_text)
+    if comments_text:
+        parts.append(f"Комментарий:\n{comments_text}")
+    return "\n\n".join(parts)
+
+
+def _sentence_case_title(value: str) -> str:
+    normalized = " ".join(value.strip().split()).lower()
+    if not normalized:
+        return ""
+    return normalized[0].upper() + normalized[1:]
+
+
+DEADLINE_SECTION_TITLES = {
+    "Pastries": "Выпечка",
+    "Frezzer": "Заморозка",
+    "Milk": "Молоко",
+    "SAUCES": "Соусы",
+    "SOFT DRINKS": "Безалкогольные напитки",
+    "WINE": "Вино",
+}
+
+DEADLINE_ITEM_TITLES = {
+    "Classic croissant": "Классический круассан",
+    "Choco croissant": "Шоколадный круассан",
+    "Сiabatta Sandwich": "Сэндвич на чиабатте",
+    "Prosciutto croissant": "Круассан с прошутто",
+    "Donut": "Донат",
+    "PannaCotta": "Панна-котта",
+    "Tiramisu": "Тирамису",
+    "Cheesecake": "Чизкейк",
+    "HoneyCake": "Медовик",
+    "Carrot cake": "Морковный торт",
+    "Brownie": "Брауни",
+    "Banana bread": "Банановый хлеб",
+    "Cinabon": "Синнабон",
+    "LemonCake": "Лимонный кекс",
+    "Coockies": "Печенье",
+    "ChikenSalad": "Куриный салат",
+    "FruitSalad": "Фруктовый салат",
+    "Cold brew bottle": "Колд брю в бутылке",
+    "Cold brew concentrate": "Концентрат колд брю",
+    "Regular milk": "Обычное молоко",
+    "Cream": "Сливки",
+    "Plant based milk": "Растительное молоко",
+    "Lactose free": "Безлактозное молоко",
+    "Salted caramel": "Соленая карамель",
+    "Caramel syrup(Bumble)": "Карамельный сироп (Bumble)",
+    "Singapore": "Singapore",
+    "Simple syrup": "Сахарный сироп",
+    "Halva syrup": "Халвенный сироп",
+    "Maple syrup": "Кленовый сироп",
+    "Mastard sauce": "Горчичный соус",
+    "Condensed milk": "Сгущенное молоко",
+    "Blackcurrant Sauce": "Соус из черной смородины",
+    "Sea buckthorn Sauce": "Облепиховый соус",
+    "Sparkling Water 0,25": "Газированная вода 0,25",
+    "Freshly squized orange juice": "Свежевыжатый апельсиновый сок",
+    "Orange juice": "Апельсиновый сок",
+    "Blackcurrant 320ml": "Черная смородина 320 мл",
+    "Sea buckthorn 320ml": "Облепиха 320 мл",
+    "Sparkling Wine": "Игристое вино",
+}
+
+DEADLINE_COMMENT_TRANSLATIONS = {
+    "after cooked": "после приготовления",
+    "after cooked / in fridge": "после приготовления / в холодильнике",
+    "after cooked / in box": "после приготовления / в боксе",
+    "after defrosted / in fridge": "после разморозки / в холодильнике",
+    "after opened": "после открытия",
+    "after opened / in fridge": "после открытия / в холодильнике",
+    "try before writed off": "проверить вкус перед списанием",
+}
+
+
+def _translate_deadline_period(value: str) -> str:
+    text = " ".join(value.strip().split())
+    replacements = {
+        "1 day": "1 день",
+        "3 day": "3 дня",
+        "5 days": "5 дней",
+        "7 days": "7 дней",
+        "14 days": "14 дней",
+        "3 days in fridge": "3 дня в холодильнике",
+        "7 days in fridge": "7 дней в холодильнике",
+        "48 hours(2d)": "48 часов (2 дня)",
+        "72 hours (3d)": "72 часа (3 дня)",
+        "96 hours (4d)": "96 часов (4 дня)",
+        "120 hours (5d)": "120 часов (5 дней)",
+    }
+    return replacements.get(text, text)
+
+
+def _translate_deadline_comment(value: str) -> str:
+    text = " ".join(value.strip().split()).lower()
+    return DEADLINE_COMMENT_TRANSLATIONS.get(text, value.strip())
+
+
+def _build_deadlines_body(items: list[tuple[str, str, str]]) -> str:
+    lines = []
+    for name, period, comment in items:
+        translated_name = DEADLINE_ITEM_TITLES.get(name.strip(), name.strip())
+        translated_period = _translate_deadline_period(period)
+        translated_comment = _translate_deadline_comment(comment)
+        line = f"• {translated_name} — {translated_period}"
+        if translated_comment:
+            line += f" ({translated_comment})"
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def _load_info_pages(archive: zipfile.ZipFile) -> dict[str, InfoPage]:
+    pages: dict[str, InfoPage] = {}
+
+    checklist_rows = _parse_sheet_rows(archive, _sheet_path_by_name(archive, "CheckLists"))
+    checklist_sections: list[InfoSection] = []
+    current_title = ""
+    current_tasks: list[str] = []
+    section_index = 0
+    for row_number in sorted(checklist_rows):
+        values = checklist_rows[row_number]
+        column_a = values.get("A", "").strip()
+        column_b = values.get("B", "").strip()
+        column_c = values.get("C", "").strip()
+        column_d = values.get("D", "").strip()
+
+        if column_a and not any((column_b, column_c, column_d)):
+            if current_title and current_tasks:
+                section_index += 1
+                checklist_sections.append(
+                    InfoSection(
+                        id=str(section_index),
+                        title=current_title,
+                        body="\n".join(current_tasks),
+                    )
+                )
+            current_title = _sentence_case_title(column_a)
+            current_tasks = []
+            continue
+
+        if column_b and column_b.upper() != "ЗАДАЧА":
+            task = _format_task(column_a, column_b)
+            if task:
+                current_tasks.append(task)
+
+    if current_title and current_tasks:
+        section_index += 1
+        checklist_sections.append(
+            InfoSection(id=str(section_index), title=current_title, body="\n".join(current_tasks))
+        )
+    pages["checklists"] = InfoPage(id="checklists", title="Чек-листы", sections=checklist_sections)
+
+    cleaning_rows = _parse_sheet_rows(archive, _sheet_path_by_name(archive, "DailyCleaning"))
+    cleaning_sections: list[InfoSection] = []
+    for row_number in sorted(cleaning_rows):
+        values = cleaning_rows[row_number]
+        day = values.get("A", "").strip()
+        tasks = values.get("B", "").strip()
+        comments = values.get("C", "").strip()
+        if not day or day in {"ГЕН УБОРКА ХН"} or tasks == "ЗАДАЧА":
+            continue
+        cleaning_sections.append(
+            InfoSection(
+                id=_slugify_info_title(day, str(row_number)),
+                title=day,
+                body=_format_daily_cleaning_section(tasks, comments),
+            )
+        )
+    pages["dailycleaning"] = InfoPage(
+        id="dailycleaning",
+        title="Ген уборка",
+        sections=cleaning_sections,
+    )
+
+    deadline_rows = _parse_sheet_rows(archive, _sheet_path_by_name(archive, "Deadlines"))
+    deadline_sections: list[InfoSection] = []
+    current_deadline_title = ""
+    current_items: list[tuple[str, str, str]] = []
+    section_index = 0
+    for row_number in sorted(deadline_rows):
+        values = deadline_rows[row_number]
+        column_a = values.get("A", "").strip()
+        column_b = values.get("B", "").strip()
+        column_c = values.get("C", "").strip()
+        if not column_a:
+            continue
+
+        if column_a == "Name":
+            continue
+
+        if column_a and not column_b and not column_c:
+            if current_deadline_title and current_items:
+                section_index += 1
+                deadline_sections.append(
+                    InfoSection(
+                        id=str(section_index),
+                        title=DEADLINE_SECTION_TITLES.get(current_deadline_title, current_deadline_title),
+                        body=_build_deadlines_body(current_items),
+                    )
+                )
+            current_deadline_title = column_a
+            current_items = []
+            continue
+
+        if current_deadline_title and column_b:
+            current_items.append((column_a, column_b, column_c))
+
+    if current_deadline_title and current_items:
+        section_index += 1
+        deadline_sections.append(
+            InfoSection(
+                id=str(section_index),
+                title=DEADLINE_SECTION_TITLES.get(current_deadline_title, current_deadline_title),
+                body=_build_deadlines_body(current_items),
+            )
+        )
+    pages["deadlines"] = InfoPage(
+        id="deadlines",
+        title="Сроки хранения",
+        sections=deadline_sections,
+    )
+
+    return pages
+
+
 def _append_reference_category(
     rows: dict[int, dict[str, str]],
     categories: list[Category],
@@ -552,6 +822,7 @@ def load_catalog(settings: Settings) -> Catalog:
         sheet_path = _sheet_path_by_name(archive, TARGET_SHEET_NAME)
         rows = _parse_sheet_rows(archive, sheet_path)
         row_images = _sheet_image_rows(archive, sheet_path)
+        info_pages = _load_info_pages(archive)
 
         categories: list[Category] = []
         current_category: Category | None = None
@@ -649,4 +920,5 @@ def load_catalog(settings: Settings) -> Catalog:
         categories=categories,
         drinks_by_id=drinks_by_id,
         image_registry=image_registry,
+        info_pages=info_pages,
     )

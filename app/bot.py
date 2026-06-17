@@ -9,10 +9,16 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import CommandStart
 from aiogram.types import CallbackQuery, FSInputFile, InputMediaPhoto, Message
 
-from app.catalog import Catalog, Category, Drink, load_catalog
+from app.catalog import Catalog, Category, Drink, InfoPage, InfoSection, load_catalog
 from app.cloudinary import sync_catalog_images
 from app.config import Settings, load_settings
-from app.keyboards import categories_keyboard, drink_navigation_keyboard, drinks_keyboard
+from app.keyboards import (
+    categories_keyboard,
+    drink_navigation_keyboard,
+    drinks_keyboard,
+    info_section_navigation_keyboard,
+    info_sections_keyboard,
+)
 
 router = Router()
 
@@ -56,6 +62,22 @@ def _resolve_media_items(drink: Drink) -> list[str | FSInputFile]:
 
 def _category_by_id(catalog: Catalog, category_id: str) -> Category | None:
     return next((category for category in catalog.categories if category.id == category_id), None)
+
+
+def _info_page_by_id(catalog: Catalog, page_id: str) -> InfoPage | None:
+    return catalog.info_pages.get(page_id)
+
+
+def _info_section_by_id(page: InfoPage, section_id: str) -> InfoSection | None:
+    return next((section for section in page.sections if section.id == section_id), None)
+
+
+def _format_info_page_message(page: InfoPage) -> str:
+    return f"<b>{escape(page.title)}</b>\nВыберите раздел:"
+
+
+def _format_info_section_message(page: InfoPage, section: InfoSection) -> str:
+    return f"<b>{escape(page.title)}</b>\n<b>{escape(section.title)}</b>\n\n{escape(section.body)}"
 
 
 async def _send_drink_details(message: Message, drink: Drink) -> None:
@@ -148,6 +170,36 @@ async def _show_category_drinks(
     )
 
 
+async def _show_info_page(callback: CallbackQuery, catalog: Catalog, page_id: str) -> None:
+    page = _info_page_by_id(catalog, page_id)
+    if page is None:
+        return
+    await _safe_edit_message_text(
+        callback,
+        text=_format_info_page_message(page),
+        reply_markup=info_sections_keyboard(page),
+    )
+
+
+async def _show_info_section(
+    callback: CallbackQuery,
+    catalog: Catalog,
+    page_id: str,
+    section_id: str,
+) -> None:
+    page = _info_page_by_id(catalog, page_id)
+    if page is None:
+        return
+    section = _info_section_by_id(page, section_id)
+    if section is None:
+        return
+    await _safe_edit_message_text(
+        callback,
+        text=_format_info_section_message(page, section),
+        reply_markup=info_section_navigation_keyboard(page_id),
+    )
+
+
 async def _safe_edit_message_text(
     callback: CallbackQuery,
     *,
@@ -201,6 +253,26 @@ async def card_menu_handler(callback: CallbackQuery, catalog: Catalog, settings:
     if callback.message is None:
         return
     await _send_categories_message(callback.message, catalog)
+
+
+@router.callback_query(F.data.startswith("info_section:"))
+async def info_section_handler(callback: CallbackQuery, catalog: Catalog, settings: Settings) -> None:
+    if not _is_admin(callback.from_user.id if callback.from_user else None, settings):
+        await _deny_callback(callback)
+        return
+    await callback.answer()
+    _, page_id, section_id = callback.data.split(":", 2)
+    await _show_info_section(callback, catalog, page_id, section_id)
+
+
+@router.callback_query(F.data.in_({"info:checklists", "info:dailycleaning", "info:deadlines"}))
+async def info_page_handler(callback: CallbackQuery, catalog: Catalog, settings: Settings) -> None:
+    if not _is_admin(callback.from_user.id if callback.from_user else None, settings):
+        await _deny_callback(callback)
+        return
+    await callback.answer()
+    page_id = callback.data.split(":", 1)[1]
+    await _show_info_page(callback, catalog, page_id)
 
 
 @router.callback_query(F.data.startswith("menu:"))
