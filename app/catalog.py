@@ -456,14 +456,21 @@ def _normalize_multiline_text(value: str) -> str:
     return "\n".join(lines)
 
 
-def _format_task(number: str, text: str) -> str:
-    task_text = _normalize_multiline_text(text)
-    if not task_text:
+def _format_checklist_task(index: int, text: str) -> str:
+    raw_lines = [" ".join(line.strip().split()) for line in text.splitlines() if line.strip()]
+    if not raw_lines:
         return ""
-    number = number.strip()
-    if number:
-        return f"{number} {task_text}"
-    return task_text
+
+    main_line = raw_lines[0]
+    bullet_lines = []
+    for line in raw_lines[1:]:
+        bullet_text = re.sub(r"^[•\-]+\s*", "", line).strip()
+        if bullet_text:
+            bullet_lines.append(f"   • {bullet_text}")
+
+    if bullet_lines:
+        return f"{index}. {main_line}\n" + "\n".join(bullet_lines)
+    return f"{index}. {main_line}"
 
 
 def _slugify_info_title(value: str, fallback: str) -> str:
@@ -504,18 +511,15 @@ DEADLINE_ITEM_TITLES = {
     "Сiabatta Sandwich": "Сэндвич на чиабатте",
     "Prosciutto croissant": "Круассан с прошутто",
     "Donut": "Донат",
-    "PannaCotta": "Панна-котта",
     "Tiramisu": "Тирамису",
     "Cheesecake": "Чизкейк",
     "HoneyCake": "Медовик",
-    "Carrot cake": "Морковный торт",
+    "Carrot cake": "Морковный маффин",
     "Brownie": "Брауни",
     "Banana bread": "Банановый хлеб",
     "Cinabon": "Синнабон",
-    "LemonCake": "Лимонный кекс",
+    "LemonCake": "Лемонкейк",
     "Coockies": "Печенье",
-    "ChikenSalad": "Куриный салат",
-    "FruitSalad": "Фруктовый салат",
     "Cold brew bottle": "Колд брю в бутылке",
     "Cold brew concentrate": "Концентрат колд брю",
     "Regular milk": "Обычное молоко",
@@ -540,6 +544,12 @@ DEADLINE_ITEM_TITLES = {
     "Sparkling Wine": "Игристое вино",
 }
 
+DEADLINE_EXCLUDED_ITEMS = {
+    "PannaCotta",
+    "ChikenSalad",
+    "FruitSalad",
+}
+
 DEADLINE_COMMENT_TRANSLATIONS = {
     "after cooked": "после приготовления",
     "after cooked / in fridge": "после приготовления / в холодильнике",
@@ -548,6 +558,16 @@ DEADLINE_COMMENT_TRANSLATIONS = {
     "after opened": "после открытия",
     "after opened / in fridge": "после открытия / в холодильнике",
     "try before writed off": "проверить вкус перед списанием",
+}
+
+WEEKDAY_TITLES = {
+    "ПН": "Понедельник",
+    "ВТ": "Вторник",
+    "СР": "Среда",
+    "ЧТ": "Четверг",
+    "ПТ": "Пятница",
+    "СБ": "Суббота",
+    "ВСК": "Воскресенье",
 }
 
 
@@ -577,6 +597,8 @@ def _translate_deadline_comment(value: str) -> str:
 def _build_deadlines_body(items: list[tuple[str, str, str]]) -> str:
     lines = []
     for name, period, comment in items:
+        if name.strip() in DEADLINE_EXCLUDED_ITEMS:
+            continue
         translated_name = DEADLINE_ITEM_TITLES.get(name.strip(), name.strip())
         translated_period = _translate_deadline_period(period)
         translated_comment = _translate_deadline_comment(comment)
@@ -587,6 +609,90 @@ def _build_deadlines_body(items: list[tuple[str, str, str]]) -> str:
     return "\n".join(lines)
 
 
+def _merge_deadline_sections(sections: list[InfoSection]) -> list[InfoSection]:
+    merged_targets = {"Выпечка", "Заморозка", "Безалкогольные напитки"}
+    merged_body_parts: list[str] = []
+    merged_sections: list[InfoSection] = []
+    merged_done = False
+
+    for section in sections:
+        if section.title in merged_targets:
+            if section.body:
+                merged_body_parts.append(section.body)
+            if not merged_done:
+                merged_sections.append(
+                    InfoSection(
+                        id=section.id,
+                        title="Выпечка и напитки",
+                        body="",
+                    )
+                )
+                merged_done = True
+            continue
+        merged_sections.append(section)
+
+    if merged_done:
+        merged_body = "\n".join(part for part in merged_body_parts if part.strip())
+        for section in merged_sections:
+            if section.title == "Выпечка и напитки":
+                section.body = merged_body
+                break
+
+    return merged_sections
+
+
+def _adjust_checklist_sections(sections: list[InfoSection]) -> list[InfoSection]:
+    opening_title = "Открытие смены"
+    closing_title = "Закрытие"
+    moved_task = "Заказать выпечку на следующий день (8:00-8:30)"
+    closing_extra_tasks = [
+        "Списать и помыть фильтр",
+        "Сделать колд брю (если нужно)",
+    ]
+
+    structured: list[tuple[str, list[str]]] = []
+    for section in sections:
+        tasks = [task.strip() for task in section.body.split("\n\n") if task.strip()]
+        structured.append((section.title, tasks))
+
+    opening_tasks: list[str] | None = None
+    closing_tasks: list[str] | None = None
+    for title, tasks in structured:
+        if title == opening_title:
+            opening_tasks = tasks
+        elif title == closing_title:
+            closing_tasks = tasks
+
+    if closing_tasks is not None:
+        closing_tasks[:] = [
+            task for task in closing_tasks
+            if "Заказать выпечку на след день" not in task
+            and "Заказать выпечку на следующий день" not in task
+        ]
+        insertion_index = 5 if len(closing_tasks) >= 5 else len(closing_tasks)
+        for offset, extra_task in enumerate(closing_extra_tasks):
+            if not any(extra_task.lower() in task.lower() for task in closing_tasks):
+                closing_tasks.insert(insertion_index + offset, extra_task)
+
+    if opening_tasks is not None:
+        opening_tasks.insert(0, moved_task)
+
+    adjusted_sections: list[InfoSection] = []
+    for index, (title, tasks) in enumerate(structured, start=1):
+        renumbered_tasks = [
+            _format_checklist_task(task_index, re.sub(r"^\d+\.\s*", "", task, flags=re.MULTILINE))
+            for task_index, task in enumerate(tasks, start=1)
+        ]
+        adjusted_sections.append(
+            InfoSection(
+                id=str(index),
+                title=title,
+                body="\n\n".join(renumbered_tasks),
+            )
+        )
+    return adjusted_sections
+
+
 def _load_info_pages(archive: zipfile.ZipFile) -> dict[str, InfoPage]:
     pages: dict[str, InfoPage] = {}
 
@@ -595,6 +701,7 @@ def _load_info_pages(archive: zipfile.ZipFile) -> dict[str, InfoPage]:
     current_title = ""
     current_tasks: list[str] = []
     section_index = 0
+    current_task_index = 0
     for row_number in sorted(checklist_rows):
         values = checklist_rows[row_number]
         column_a = values.get("A", "").strip()
@@ -609,23 +716,26 @@ def _load_info_pages(archive: zipfile.ZipFile) -> dict[str, InfoPage]:
                     InfoSection(
                         id=str(section_index),
                         title=current_title,
-                        body="\n".join(current_tasks),
+                        body="\n\n".join(current_tasks),
                     )
                 )
             current_title = _sentence_case_title(column_a)
             current_tasks = []
+            current_task_index = 0
             continue
 
         if column_b and column_b.upper() != "ЗАДАЧА":
-            task = _format_task(column_a, column_b)
+            current_task_index += 1
+            task = _format_checklist_task(current_task_index, column_b)
             if task:
                 current_tasks.append(task)
 
     if current_title and current_tasks:
         section_index += 1
         checklist_sections.append(
-            InfoSection(id=str(section_index), title=current_title, body="\n".join(current_tasks))
+            InfoSection(id=str(section_index), title=current_title, body="\n\n".join(current_tasks))
         )
+    checklist_sections = _adjust_checklist_sections(checklist_sections)
     pages["checklists"] = InfoPage(id="checklists", title="Чек-листы", sections=checklist_sections)
 
     cleaning_rows = _parse_sheet_rows(archive, _sheet_path_by_name(archive, "DailyCleaning"))
@@ -640,7 +750,7 @@ def _load_info_pages(archive: zipfile.ZipFile) -> dict[str, InfoPage]:
         cleaning_sections.append(
             InfoSection(
                 id=_slugify_info_title(day, str(row_number)),
-                title=day,
+                title=WEEKDAY_TITLES.get(day, day),
                 body=_format_daily_cleaning_section(tasks, comments),
             )
         )
@@ -692,6 +802,7 @@ def _load_info_pages(archive: zipfile.ZipFile) -> dict[str, InfoPage]:
                 body=_build_deadlines_body(current_items),
             )
         )
+    deadline_sections = _merge_deadline_sections(deadline_sections)
     pages["deadlines"] = InfoPage(
         id="deadlines",
         title="Сроки хранения",

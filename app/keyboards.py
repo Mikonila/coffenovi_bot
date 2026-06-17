@@ -21,7 +21,7 @@ CATEGORY_EMOJIS = {
 
 INFO_BUTTONS = (
     ("📋 Чек-листы", "info:checklists"),
-    ("🧼 Ген уборка", "info:dailycleaning"),
+    ("🪣 Ген уборка", "info:dailycleaning"),
     ("⏳ Сроки хранения", "info:deadlines"),
 )
 
