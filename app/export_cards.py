@@ -19,8 +19,25 @@ def main() -> None:
             existing_cards = raw_existing_cards
 
     for key, card in existing_cards.items():
-        if key not in cards and isinstance(card, dict):
+        if not isinstance(card, dict):
+            continue
+        if key not in cards:
             cards[key] = card
+            continue
+
+        merged_card = dict(cards[key])
+        for field in (
+            "source_name",
+            "name",
+            "category_name",
+            "volume",
+            "recipe",
+            "method",
+            "serving",
+        ):
+            if field in card:
+                merged_card[field] = card[field]
+        cards[key] = merged_card
 
     payload = {
         "version": 1,

@@ -68,7 +68,7 @@ REFERENCE_GRIND_TRANSLATIONS = {
     "v60": "V60",
     "Aeropress": "Аэропресс",
     "Turkish coffee": "Турецкий кофе",
-    "HOOP": "Хуп",
+    "HOOP": "Hoop",
     "FrenchPress": "Френч-пресс",
     "Filter/Batch": "Фильтр / батч",
 }
