@@ -85,6 +85,33 @@ def _reload_catalog(catalog: Catalog, settings: Settings) -> None:
     _replace_catalog_state(catalog, load_catalog(settings))
 
 
+def _apply_entry_to_drink(drink: Drink, entry: dict[str, object]) -> None:
+    drink.name = str(entry.get("name", drink.name) or drink.name)
+    drink.volume = str(entry.get("volume", drink.volume) or "")
+    drink.recipe = str(entry.get("recipe", drink.recipe) or "")
+    drink.method = str(entry.get("method", drink.method) or "")
+    drink.serving = str(entry.get("serving", drink.serving) or "")
+    drink.custom_text = str(entry.get("custom_text", "") or "")
+    drink.image_urls = [
+        str(value).strip()
+        for value in entry.get("image_urls", [])
+        if str(value).strip()
+    ] if isinstance(entry.get("image_urls"), list) else []
+    drink.image_public_ids = [
+        str(value).strip()
+        for value in entry.get("image_public_ids", [])
+        if str(value).strip()
+    ] if isinstance(entry.get("image_public_ids"), list) else []
+
+    image_mode = str(entry.get("image_mode", "default")).strip() or "default"
+    if image_mode == "none":
+        drink.image_ids = []
+        drink.image_paths = []
+    elif image_mode == "custom":
+        drink.image_ids = []
+        drink.image_paths = []
+
+
 async def _deny_message(message: Message) -> None:
     await message.answer("У вас нет доступа к этому боту.")
 
@@ -348,7 +375,7 @@ async def _save_custom_text(
     entry = _ensure_card_entry(payload, drink)
     entry["custom_text"] = custom_text.strip()
     save_drink_cards_payload(settings.drink_cards_path, payload)
-    _reload_catalog(catalog, settings)
+    _apply_entry_to_drink(drink, entry)
     asyncio.create_task(_persist_drink_cards(settings))
 
 
@@ -371,7 +398,7 @@ async def _set_drink_image_mode(
     entry["image_urls"] = image_urls
     entry["image_public_ids"] = image_public_ids
     save_drink_cards_payload(settings.drink_cards_path, payload)
-    _reload_catalog(catalog, settings)
+    _apply_entry_to_drink(drink, entry)
     asyncio.create_task(_persist_drink_cards(settings))
 
 
