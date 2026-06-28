@@ -4,6 +4,7 @@ import asyncio
 import time
 from dataclasses import dataclass, field
 from html import escape
+from pathlib import Path
 
 import aiohttp
 from aiogram import Bot, Dispatcher, F, Router
@@ -177,6 +178,10 @@ async def _replace_text_screen(
     session.screen_message_ids = [sent.message_id]
 
 
+async def _notify_editor(chat_id: int, bot: Bot, text: str) -> None:
+    await bot.send_message(chat_id=chat_id, text=text)
+
+
 async def _show_categories_screen(bot: Bot, *, chat_id: int, user_id: int, catalog: Catalog) -> None:
     await _replace_text_screen(
         bot,
@@ -321,7 +326,11 @@ def _ensure_card_entry(payload: dict[str, object], drink: Drink) -> dict[str, ob
 
 async def _persist_drink_cards(settings: Settings) -> None:
     if settings.cloudinary_configured:
-        await upload_drink_cards_backup(settings)
+        try:
+            await asyncio.wait_for(upload_drink_cards_backup(settings), timeout=15)
+        except Exception:
+            # Local JSON remains the source of truth; backup sync should not block edits.
+            return
 
 
 async def _save_custom_text(
@@ -339,8 +348,8 @@ async def _save_custom_text(
     entry = _ensure_card_entry(payload, drink)
     entry["custom_text"] = custom_text.strip()
     save_drink_cards_payload(settings.drink_cards_path, payload)
-    await _persist_drink_cards(settings)
     _reload_catalog(catalog, settings)
+    asyncio.create_task(_persist_drink_cards(settings))
 
 
 async def _set_drink_image_mode(
@@ -362,8 +371,8 @@ async def _set_drink_image_mode(
     entry["image_urls"] = image_urls
     entry["image_public_ids"] = image_public_ids
     save_drink_cards_payload(settings.drink_cards_path, payload)
-    await _persist_drink_cards(settings)
     _reload_catalog(catalog, settings)
+    asyncio.create_task(_persist_drink_cards(settings))
 
 
 async def _download_telegram_file_bytes(bot: Bot, file_id: str) -> bytes:
@@ -371,11 +380,17 @@ async def _download_telegram_file_bytes(bot: Bot, file_id: str) -> bytes:
     if not file.file_path:
         raise RuntimeError("Telegram returned file without file_path.")
     url = f"https://api.telegram.org/file/bot{bot.token}/{file.file_path}"
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
-            if response.status >= 400:
-                raise RuntimeError(f"Failed to download Telegram file: {response.status}")
-            return await response.read()
+    timeout = aiohttp.ClientTimeout(total=30, connect=10, sock_connect=10, sock_read=20)
+    try:
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(url) as response:
+                if response.status >= 400:
+                    raise RuntimeError(f"Failed to download Telegram file: {response.status}")
+                return await response.read()
+    except asyncio.TimeoutError as exc:
+        raise RuntimeError("Telegram file download timed out.") from exc
+    except aiohttp.ClientError as exc:
+        raise RuntimeError(f"Telegram file download failed: {exc}") from exc
 
 
 async def _refresh_drink_text_message(
@@ -546,7 +561,11 @@ async def editor_edit_info_handler(callback: CallbackQuery, catalog: Catalog, se
         chat_id=callback.message.chat.id,
         text="Отправьте новый текст карточки одним сообщением. Он полностью заменит текущую информацию.",
     )
-    session.prompt_message_ids = [prompt.message_id]
+    confirmation = await callback.bot.send_message(
+        chat_id=callback.message.chat.id,
+        text="Режим редактирования включен. Следующее текстовое сообщение обновит эту карточку.",
+    )
+    session.prompt_message_ids = [prompt.message_id, confirmation.message_id]
 
 
 @router.callback_query(F.data.startswith("editor:add_photo:"))
@@ -563,7 +582,11 @@ async def editor_add_photo_handler(callback: CallbackQuery, catalog: Catalog, se
         chat_id=callback.message.chat.id,
         text="Отправьте одну фотографию. Она загрузится в Cloudinary и заменит текущее фото карточки.",
     )
-    session.prompt_message_ids = [prompt.message_id]
+    confirmation = await callback.bot.send_message(
+        chat_id=callback.message.chat.id,
+        text="Режим загрузки фото включен. Следующая фотография обновит эту карточку.",
+    )
+    session.prompt_message_ids = [prompt.message_id, confirmation.message_id]
 
 
 @router.callback_query(F.data.startswith("editor:remove_photo:"))
@@ -577,26 +600,31 @@ async def editor_remove_photo_handler(callback: CallbackQuery, catalog: Catalog,
     drink = catalog.drinks_by_id.get(drink_id)
     if drink is None:
         return
+    try:
+        for public_id in drink.image_public_ids:
+            await delete_editor_image(settings, public_id)
 
-    for public_id in drink.image_public_ids:
-        await delete_editor_image(settings, public_id)
-
-    await _set_drink_image_mode(
-        catalog,
-        settings,
-        drink_id=drink_id,
-        image_mode="none",
-        image_urls=[],
-        image_public_ids=[],
-    )
-    await _show_drink_screen(
-        callback.bot,
-        chat_id=callback.message.chat.id,
-        user_id=callback.from_user.id,
-        catalog=catalog,
-        settings=settings,
-        drink_id=drink_id,
-    )
+        await _set_drink_image_mode(
+            catalog,
+            settings,
+            drink_id=drink_id,
+            image_mode="none",
+            image_urls=[],
+            image_public_ids=[],
+        )
+        await _show_drink_screen(
+            callback.bot,
+            chat_id=callback.message.chat.id,
+            user_id=callback.from_user.id,
+            catalog=catalog,
+            settings=settings,
+            drink_id=drink_id,
+        )
+    except Exception as exc:
+        await callback.bot.send_message(
+            chat_id=callback.message.chat.id,
+            text=f"Не удалось удалить фото: {escape(str(exc))}",
+        )
 
 
 @router.message(F.photo)
@@ -614,41 +642,98 @@ async def editor_photo_message_handler(message: Message, catalog: Catalog, setti
     if drink is None:
         return
 
-    photo = message.photo[-1]
-    file_bytes = await _download_telegram_file_bytes(message.bot, photo.file_id)
-    public_id = f"{drink.id.replace(':', '_')}_{int(time.time())}"
-    uploaded_public_id, uploaded_url = await upload_editor_image(
-        settings,
-        file_bytes=file_bytes,
-        filename=f"{public_id}.jpg",
-        public_id=public_id,
-    )
-
-    for old_public_id in drink.image_public_ids:
-        await delete_editor_image(settings, old_public_id)
-
-    await _set_drink_image_mode(
-        catalog,
-        settings,
-        drink_id=drink.id,
-        image_mode="custom",
-        image_urls=[uploaded_url],
-        image_public_ids=[uploaded_public_id],
-    )
-
-    await _clear_prompt_messages(message.bot, message.chat.id, session)
     try:
-        await message.delete()
-    except TelegramBadRequest:
-        pass
-    await _show_drink_screen(
-        message.bot,
-        chat_id=message.chat.id,
-        user_id=message.from_user.id,
-        catalog=catalog,
-        settings=settings,
-        drink_id=drink.id,
-    )
+        photo = message.photo[-1]
+        file_bytes = await _download_telegram_file_bytes(message.bot, photo.file_id)
+        public_id = f"{drink.id.replace(':', '_')}_{int(time.time())}"
+        uploaded_public_id, uploaded_url = await upload_editor_image(
+            settings,
+            file_bytes=file_bytes,
+            filename=f"{public_id}.jpg",
+            public_id=public_id,
+        )
+
+        for old_public_id in drink.image_public_ids:
+            await delete_editor_image(settings, old_public_id)
+
+        await _set_drink_image_mode(
+            catalog,
+            settings,
+            drink_id=drink.id,
+            image_mode="custom",
+            image_urls=[uploaded_url],
+            image_public_ids=[uploaded_public_id],
+        )
+
+        await _clear_prompt_messages(message.bot, message.chat.id, session)
+        try:
+            await message.delete()
+        except TelegramBadRequest:
+            pass
+        await _show_drink_screen(
+            message.bot,
+            chat_id=message.chat.id,
+            user_id=message.from_user.id,
+            catalog=catalog,
+            settings=settings,
+            drink_id=drink.id,
+        )
+    except Exception as exc:
+        await message.answer(f"Не удалось добавить фото: {escape(str(exc))}")
+
+
+@router.message(F.document)
+async def editor_document_message_handler(message: Message, catalog: Catalog, settings: Settings) -> None:
+    if not _is_editor(message.from_user.id if message.from_user else None, settings):
+        return
+    if not message.from_user:
+        return
+
+    session = _session(message.from_user.id)
+    if session.pending_action is None or session.pending_action.action != "add_photo":
+        return
+    if message.document is None or not (message.document.mime_type or "").startswith("image/"):
+        return
+
+    drink = _drink_by_pending_action(catalog, session.pending_action)
+    if drink is None:
+        return
+
+    try:
+        file_bytes = await _download_telegram_file_bytes(message.bot, message.document.file_id)
+        suffix = Path(message.document.file_name or "upload.jpg").suffix or ".jpg"
+        public_id = f"{drink.id.replace(':', '_')}_{int(time.time())}"
+        uploaded_public_id, uploaded_url = await upload_editor_image(
+            settings,
+            file_bytes=file_bytes,
+            filename=f"{public_id}{suffix}",
+            public_id=public_id,
+        )
+        for old_public_id in drink.image_public_ids:
+            await delete_editor_image(settings, old_public_id)
+        await _set_drink_image_mode(
+            catalog,
+            settings,
+            drink_id=drink.id,
+            image_mode="custom",
+            image_urls=[uploaded_url],
+            image_public_ids=[uploaded_public_id],
+        )
+        await _clear_prompt_messages(message.bot, message.chat.id, session)
+        try:
+            await message.delete()
+        except TelegramBadRequest:
+            pass
+        await _show_drink_screen(
+            message.bot,
+            chat_id=message.chat.id,
+            user_id=message.from_user.id,
+            catalog=catalog,
+            settings=settings,
+            drink_id=drink.id,
+        )
+    except Exception as exc:
+        await message.answer(f"Не удалось добавить фото: {escape(str(exc))}")
 
 
 @router.message(F.text)
@@ -666,32 +751,28 @@ async def editor_text_message_handler(message: Message, catalog: Catalog, settin
     if drink is None or not message.text:
         return
 
-    await _save_custom_text(
-        catalog,
-        settings,
-        drink_id=drink.id,
-        custom_text=message.text,
-    )
-    updated_drink = catalog.drinks_by_id.get(drink.id)
-    if updated_drink is None:
-        return
-
-    if session.screen_message_ids:
-        target_message_id = session.screen_message_ids[-1]
-        await _refresh_drink_text_message(
+    try:
+        await _save_custom_text(
+            catalog,
+            settings,
+            drink_id=drink.id,
+            custom_text=message.text,
+        )
+        await _clear_prompt_messages(message.bot, message.chat.id, session)
+        try:
+            await message.delete()
+        except TelegramBadRequest:
+            pass
+        await _show_drink_screen(
             message.bot,
             chat_id=message.chat.id,
-            message_id=target_message_id,
-            drink=updated_drink,
-            settings=settings,
             user_id=message.from_user.id,
+            catalog=catalog,
+            settings=settings,
+            drink_id=drink.id,
         )
-
-    await _clear_prompt_messages(message.bot, message.chat.id, session)
-    try:
-        await message.delete()
-    except TelegramBadRequest:
-        pass
+    except Exception as exc:
+        await message.answer(f"Не удалось обновить текст: {escape(str(exc))}")
 
 
 async def _prepare_catalog(settings: Settings) -> Catalog:

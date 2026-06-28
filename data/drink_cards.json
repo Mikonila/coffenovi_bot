@@ -848,7 +848,11 @@
       "volume": "",
       "recipe": "",
       "method": "1) Выпекайте в режиме: вентилятор + прогрев снизу и сверху.\n2) Температура: 210 градусов.\n3) Готовьте 20 минут.\n4) Переверните.\n5) Готовьте еще 5 минут.",
-      "serving": ""
+      "serving": "",
+      "custom_text": "TEST EDIT",
+      "image_mode": "default",
+      "image_urls": [],
+      "image_public_ids": []
     }
   }
 }

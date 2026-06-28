@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import time
@@ -9,6 +10,8 @@ import aiohttp
 
 from app.catalog import Catalog
 from app.config import Settings
+
+REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=30, connect=10, sock_connect=10, sock_read=20)
 
 
 def _signature(params: dict[str, str], api_secret: str) -> str:
@@ -87,12 +90,17 @@ async def _upload_bytes(
         content_type=content_type,
     )
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(_upload_endpoint(settings, resource_type), data=form) as response:
-            payload = await response.json(content_type=None)
-            if response.status >= 400:
-                raise RuntimeError(f"Cloudinary upload failed for {public_id}: {payload}")
-            return payload
+    try:
+        async with aiohttp.ClientSession(timeout=REQUEST_TIMEOUT) as session:
+            async with session.post(_upload_endpoint(settings, resource_type), data=form) as response:
+                payload = await response.json(content_type=None)
+                if response.status >= 400:
+                    raise RuntimeError(f"Cloudinary upload failed for {public_id}: {payload}")
+                return payload
+    except asyncio.TimeoutError as exc:
+        raise RuntimeError(f"Cloudinary upload timed out for {public_id}.") from exc
+    except aiohttp.ClientError as exc:
+        raise RuntimeError(f"Cloudinary upload failed for {public_id}: {exc}") from exc
 
 
 async def upload_editor_image(
@@ -137,11 +145,16 @@ async def delete_editor_image(settings: Settings, public_id: str) -> None:
         _signature(signature_params, settings.cloudinary_api_secret or ""),
     )
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(_destroy_endpoint(settings, "image"), data=form) as response:
-            if response.status >= 400:
-                payload = await response.text()
-                raise RuntimeError(f"Cloudinary delete failed for {public_id}: {payload}")
+    try:
+        async with aiohttp.ClientSession(timeout=REQUEST_TIMEOUT) as session:
+            async with session.post(_destroy_endpoint(settings, "image"), data=form) as response:
+                if response.status >= 400:
+                    payload = await response.text()
+                    raise RuntimeError(f"Cloudinary delete failed for {public_id}: {payload}")
+    except asyncio.TimeoutError as exc:
+        raise RuntimeError(f"Cloudinary delete timed out for {public_id}.") from exc
+    except aiohttp.ClientError as exc:
+        raise RuntimeError(f"Cloudinary delete failed for {public_id}: {exc}") from exc
 
 
 async def upload_drink_cards_backup(settings: Settings) -> None:
@@ -162,15 +175,20 @@ async def download_drink_cards_backup(settings: Settings) -> bool:
     if not settings.cloudinary_configured:
         return False
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(_drink_cards_remote_url(settings)) as response:
-            if response.status == 404:
-                return False
-            if response.status >= 400:
-                raise RuntimeError(
-                    f"Cloudinary drink cards download failed: {response.status}"
-                )
-            payload = await response.read()
+    try:
+        async with aiohttp.ClientSession(timeout=REQUEST_TIMEOUT) as session:
+            async with session.get(_drink_cards_remote_url(settings)) as response:
+                if response.status == 404:
+                    return False
+                if response.status >= 400:
+                    raise RuntimeError(
+                        f"Cloudinary drink cards download failed: {response.status}"
+                    )
+                payload = await response.read()
+    except asyncio.TimeoutError as exc:
+        raise RuntimeError("Cloudinary drink cards download timed out.") from exc
+    except aiohttp.ClientError as exc:
+        raise RuntimeError(f"Cloudinary drink cards download failed: {exc}") from exc
 
     settings.drink_cards_path.parent.mkdir(parents=True, exist_ok=True)
     settings.drink_cards_path.write_bytes(payload)
