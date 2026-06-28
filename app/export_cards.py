@@ -34,6 +34,10 @@ def main() -> None:
             "recipe",
             "method",
             "serving",
+            "custom_text",
+            "image_mode",
+            "image_urls",
+            "image_public_ids",
         ):
             if field in card:
                 merged_card[field] = card[field]

@@ -6,7 +6,7 @@ import zipfile
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 from xml.etree import ElementTree as ET
 
 from app.config import Settings
@@ -39,9 +39,11 @@ class Drink:
     recipe: str
     method: str
     serving: str
+    custom_text: str = ""
     details: list[tuple[str, str]] = field(default_factory=list)
     image_ids: list[str] = field(default_factory=list)
     image_urls: list[str] = field(default_factory=list)
+    image_public_ids: list[str] = field(default_factory=list)
     image_paths: list[Path] = field(default_factory=list)
 
 
@@ -295,6 +297,27 @@ def _load_cloudinary_cache(cache_path: Path) -> dict[str, str]:
     raise RuntimeError(f"Unexpected Cloudinary cache format in {cache_path}.")
 
 
+def load_drink_cards_payload(cards_path: Path) -> dict[str, Any]:
+    if not cards_path.exists():
+        return {"version": 1, "drinks": {}}
+
+    payload = json.loads(cards_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"Unexpected drink cards payload format in {cards_path}.")
+    payload.setdefault("drinks", {})
+    if not isinstance(payload["drinks"], dict):
+        raise RuntimeError(f"Unexpected drink cards format in {cards_path}.")
+    return payload
+
+
+def save_drink_cards_payload(cards_path: Path, payload: dict[str, Any]) -> None:
+    cards_path.parent.mkdir(parents=True, exist_ok=True)
+    cards_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
 def _card_storage_key(row_number: int) -> str:
     return f"drink:{row_number}"
 
@@ -378,20 +401,15 @@ def _build_translated_card(
 
 
 def _load_drink_cards(cards_path: Path) -> dict[str, dict[str, str]]:
-    if not cards_path.exists():
-        return {}
+    payload = load_drink_cards_payload(cards_path)
+    drinks_payload = payload.get("drinks", {})
 
-    payload = json.loads(cards_path.read_text(encoding="utf-8"))
-    drinks_payload = payload.get("drinks", payload) if isinstance(payload, dict) else None
-    if not isinstance(drinks_payload, dict):
-        raise RuntimeError(f"Unexpected drink cards format in {cards_path}.")
-
-    cards: dict[str, dict[str, str]] = {}
+    cards: dict[str, dict[str, Any]] = {}
     for key, raw_card in drinks_payload.items():
         if not isinstance(raw_card, dict):
             continue
 
-        card: dict[str, str] = {}
+        card: dict[str, Any] = {}
         card["id"] = str(raw_card.get("id", key)).strip()
         try:
             card["row_number"] = int(raw_card.get("row_number", 0))
@@ -406,13 +424,24 @@ def _load_drink_cards(cards_path: Path) -> dict[str, dict[str, str]]:
                 card[field] = value.strip()
             else:
                 card[field] = str(value).strip()
+        custom_text = raw_card.get("custom_text", "")
+        card["custom_text"] = custom_text.strip() if isinstance(custom_text, str) else ""
+        card["image_mode"] = str(raw_card.get("image_mode", "default")).strip() or "default"
+        image_urls = raw_card.get("image_urls", [])
+        image_public_ids = raw_card.get("image_public_ids", [])
+        card["image_urls"] = [
+            str(value).strip() for value in image_urls if str(value).strip()
+        ] if isinstance(image_urls, list) else []
+        card["image_public_ids"] = [
+            str(value).strip() for value in image_public_ids if str(value).strip()
+        ] if isinstance(image_public_ids, list) else []
         cards[str(key)] = card
     return cards
 
 
 def _append_manual_cards(
     categories: list[Category],
-    stored_cards: dict[str, dict[str, str]],
+    stored_cards: dict[str, dict[str, Any]],
     existing_ids: set[str],
 ) -> None:
     categories_by_name = {category.name: category for category in categories}
@@ -439,6 +468,9 @@ def _append_manual_cards(
                 recipe=card.get("recipe", ""),
                 method=card.get("method", ""),
                 serving=card.get("serving", ""),
+                custom_text=card.get("custom_text", ""),
+                image_urls=list(card.get("image_urls", [])),
+                image_public_ids=list(card.get("image_public_ids", [])),
             )
         )
 
@@ -970,6 +1002,7 @@ def load_catalog(settings: Settings) -> Catalog:
                 recipe = stored_card.get("recipe", "")
                 method = stored_card.get("method", "")
                 serving = stored_card.get("serving", "")
+                custom_text = stored_card.get("custom_text", "")
             else:
                 default_card = _build_translated_card(
                     row_number=row_number,
@@ -982,6 +1015,7 @@ def load_catalog(settings: Settings) -> Catalog:
                 recipe = str(default_card["recipe"])
                 method = str(default_card["method"])
                 serving = str(default_card["serving"])
+                custom_text = ""
 
             drink = Drink(
                 id=_card_storage_key(row_number),
@@ -993,6 +1027,9 @@ def load_catalog(settings: Settings) -> Catalog:
                 recipe=recipe,
                 method=method,
                 serving=serving,
+                custom_text=custom_text,
+                image_urls=list(stored_card.get("image_urls", [])) if stored_card else [],
+                image_public_ids=list(stored_card.get("image_public_ids", [])) if stored_card else [],
             )
             existing_ids.add(drink.id)
             current_category.drinks.append(drink)
@@ -1006,7 +1043,17 @@ def load_catalog(settings: Settings) -> Catalog:
         all_image_ids: set[str] = set()
         for category in categories:
             for drink in category.drinks:
-                drink.image_ids = row_images.get(drink.row_number, [])
+                stored_card = stored_cards.get(drink.id, {})
+                image_mode = str(stored_card.get("image_mode", "default")) if stored_card else "default"
+                if image_mode == "none":
+                    drink.image_ids = []
+                    drink.image_urls = []
+                    drink.image_paths = []
+                elif image_mode == "custom" and drink.image_urls:
+                    drink.image_ids = []
+                    drink.image_paths = []
+                else:
+                    drink.image_ids = row_images.get(drink.row_number, [])
                 all_image_ids.update(drink.image_ids)
 
         image_registry = _extract_images(archive, settings.assets_dir, all_image_ids)
@@ -1015,16 +1062,18 @@ def load_catalog(settings: Settings) -> Catalog:
     drinks_by_id: dict[str, Drink] = {}
     for category in categories:
         for drink in category.drinks:
-            drink.image_urls = [
-                cloudinary_urls[image_id]
-                for image_id in drink.image_ids
-                if image_id in cloudinary_urls
-            ]
-            drink.image_paths = [
-                image_registry[image_id]
-                for image_id in drink.image_ids
-                if image_id in image_registry
-            ]
+            if not drink.image_urls:
+                drink.image_urls = [
+                    cloudinary_urls[image_id]
+                    for image_id in drink.image_ids
+                    if image_id in cloudinary_urls
+                ]
+            if not drink.image_paths:
+                drink.image_paths = [
+                    image_registry[image_id]
+                    for image_id in drink.image_ids
+                    if image_id in image_registry
+                ]
             drinks_by_id[drink.id] = drink
 
     return Catalog(

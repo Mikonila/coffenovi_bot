@@ -52,9 +52,40 @@ def drinks_keyboard(category: Category) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def drink_navigation_keyboard(category_id: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
+def drink_navigation_keyboard(
+    category_id: str,
+    *,
+    drink_id: str,
+    can_edit: bool,
+) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    if can_edit:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="🖼 Добавить фотографию",
+                    callback_data=f"editor:add_photo:{drink_id}",
+                )
+            ]
+        )
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="🗑 Удалить фотографию",
+                    callback_data=f"editor:remove_photo:{drink_id}",
+                )
+            ]
+        )
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="✏️ Изменить инфо",
+                    callback_data=f"editor:edit_info:{drink_id}",
+                )
+            ]
+        )
+    rows.extend(
+        [
             [
                 InlineKeyboardButton(
                     text="⬅️ Назад к напиткам",
@@ -69,6 +100,7 @@ def drink_navigation_keyboard(category_id: str) -> InlineKeyboardMarkup:
             ],
         ]
     )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def info_sections_keyboard(page: InfoPage) -> InlineKeyboardMarkup:

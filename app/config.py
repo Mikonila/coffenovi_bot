@@ -32,6 +32,7 @@ class Settings:
     project_dir: Path
     bot_token: str | None
     admin_user_ids: frozenset[int]
+    editor_user_ids: frozenset[int]
     workbook_path: Path
     drink_cards_path: Path
     assets_dir: Path
@@ -55,6 +56,14 @@ class Settings:
     @property
     def admins_configured(self) -> bool:
         return bool(self.admin_user_ids)
+
+    @property
+    def access_user_ids(self) -> frozenset[int]:
+        return self.admin_user_ids | self.editor_user_ids
+
+    @property
+    def access_configured(self) -> bool:
+        return bool(self.access_user_ids)
 
 
 def _parse_admin_user_ids(raw_value: str | None) -> frozenset[int]:
@@ -107,6 +116,9 @@ def load_settings(*, require_bot_token: bool = True) -> Settings:
         project_dir=project_dir,
         bot_token=bot_token,
         admin_user_ids=_parse_admin_user_ids(os.getenv("ADMIN_USER_IDS")),
+        editor_user_ids=_parse_admin_user_ids(
+            os.getenv("EDITOR_USER_IDS", "816471270,1339362869")
+        ),
         workbook_path=workbook_path,
         drink_cards_path=drink_cards_path,
         assets_dir=assets_dir,
